@@ -43,12 +43,24 @@ Plataforma de alta frequência (HFT) e análise de microestrutura de mercado ali
 
 ---
 
+## 📁 Estrutura do Projeto
+
+```text
+├── src/client/       # Dashboard React/Vite
+├── server/           # API, WebSocket, indicadores e execução
+├── shared/           # Tipos compartilhados entre cliente e servidor
+├── index.html        # Entrada do Vite
+└── package.json      # Scripts e dependências
+```
+
+---
+
 ## 🚀 Como Executar Localmente
 
 ### 1. Clonar o Repositório e Instalar Dependências
 ```bash
-git clone https://github.com/SEU_USUARIO/kronos-aranha-digital.git
-cd kronos-aranha-digital
+git clone https://github.com/leonardoaranhaa/Kronos.git
+cd Kronos
 
 # Instalar dependências Node.js
 npm install

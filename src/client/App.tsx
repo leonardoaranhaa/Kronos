@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, TrendingUp, TrendingDown, Zap, Shield, RefreshCw } from 'lucide-react';
-import { Candle, TechnicalIndicators, AggressiveSignal } from '../shared/types';
+import { Candle, TechnicalIndicators, AggressiveSignal } from '../../shared/types';
 
 export default function App() {
   const [candle, setCandle] = useState<Candle | null>(null);
