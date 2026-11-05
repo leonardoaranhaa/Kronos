@@ -1,6 +1,4 @@
 import { loadEnvFile } from './load-env';
-loadEnvFile();
-
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -10,6 +8,8 @@ import { KronosBridge } from './kronos-bridge';
 import { MarketFeed } from './market-feed';
 import { CanonicalCandle } from '../shared/types';
 import { auditCandleSeries, validateCanonicalCandle } from './candle-validation';
+
+loadEnvFile();
 
 const app = express();
 app.use(cors());
