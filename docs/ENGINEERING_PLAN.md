@@ -1,30 +1,30 @@
 # KRONOS — Engineering Plan
 
-**Status:** Foundation audit in progress  
-**Baseline:** `main` — version declared in package metadata: 1.3.0  
+**Status:** P1 data contract and validation implementation in progress  
+**Baseline:** `main` — package metadata version 1.3.0  
 **Working branch:** `engineering/foundation-audit`  
-**Scope:** Research, data integrity, model integration, validation and observability. Live financial execution remains disabled throughout this plan.
+**Scope:** Research, data integrity, model integration, validation and observability. Live financial execution remains disabled.
 
 ## 1. Engineering principles
 
-1. The official `shiyu-coder/Kronos` implementation, its tokenizer and compatible pretrained weights are the source of truth for model integration.
+1. The official `shiyu-coder/Kronos` implementation, tokenizer and compatible pretrained weights are the source of truth.
 2. Historical market data must be reproducible, timestamped, validated and versioned.
 3. No random fallback may be presented as a model prediction.
-4. No synthetic VPIN, OFI, PnL, win rate or confidence may be presented as observed market evidence.
-5. Model predictions, strategy hypotheses and measured outcomes must be stored as separate records.
-6. All experiments must use chronological train/validation/test splits and prevent look-ahead leakage.
-7. No production API credentials, live order routing or real-money execution are permitted in the research milestones.
+4. No synthetic VPIN, OFI, PnL, win rate or confidence may be presented as observed evidence.
+5. Model predictions, strategy hypotheses and measured outcomes remain separate records.
+6. Experiments use chronological train/validation/test splits and prevent look-ahead leakage.
+7. No production API credentials, live order routing or real-money execution in these milestones.
 
-## 2. Baseline findings confirmed from the current repository
+## 2. Confirmed baseline findings
 
-- `server/kronos_worker.py` currently estimates future closes using random samples derived from recent returns; it does not load the official Kronos model or tokenizer.
-- `server/kronos-bridge.ts` sends up to 50 candles to the Python worker, but does not implement request correlation, bounded buffering, readiness gating or robust process lifecycle handling.
-- `server/index.ts` generates VPIN and OFI with random values. Its market event path therefore cannot be treated as genuine order-flow analytics.
-- `server/market-feed.ts` currently implements a synthetic replay feed. The selected `binance` mode has no Binance connection in this file.
-- `server/indicators.ts` computes indicators but also embeds heuristic confidence values and position-sizing logic. These values are not calibrated probabilities.
-- `server/monte_carlo.ts` uses synthetic prices and hard-coded/random outcome assumptions, including a 96.5% win probability and fixed gains/losses. It is not a historical backtest and must not be used as evidence of performance.
-- `server/order_execution.ts` contains signed order-submission code and reports `EXECUTED` after the entry response even if the protective OCO request was unsuccessful. This path must remain disconnected until independently reviewed and tested.
-- `.env.example` contained values resembling API credentials. Treat them as compromised if they were ever valid; rotate/revoke them and inspect repository history. This branch replaces them with placeholders.
+- `server/kronos_worker.py` currently estimates future closes using random samples from recent returns; it does not load the official Kronos model or tokenizer.
+- `server/kronos-bridge.ts` sends up to 50 candles to Python but lacks request correlation, bounded buffering, readiness gating and robust process lifecycle handling.
+- `server/index.ts` generates VPIN and OFI with random values; these are not genuine order-flow analytics.
+- `server/market-feed.ts` implements synthetic replay only; its `binance` mode has no Binance connection.
+- `server/indicators.ts` embeds heuristic confidence and position-sizing logic; these are not calibrated probabilities.
+- `server/monte_carlo.ts` uses synthetic prices and hard-coded/random outcome assumptions, including a 96.5% win probability; it is not a historical backtest.
+- `server/order_execution.ts` contains signed order-submission code and can report `EXECUTED` even if protective OCO submission fails. Keep it disconnected.
+- `.env.example` contained credential-like values. Treat them as compromised if ever valid; rotate/revoke them and inspect repository history. The engineering branch replaces them with placeholders.
 
 ## 3. Target architecture
 
@@ -57,86 +57,73 @@ Feature & Quality Checks    Kronos Training / Fine-tuning
               Dashboard / Reports
 ```
 
-The model service must be isolated from strategy evaluation. The dashboard must label synthetic replay, historical replay and live market data distinctly.
-
 ## 4. Delivery phases
 
 ### P0 — Repository and security baseline
-- [x] Create an isolated engineering branch.
+- [x] Create isolated engineering branch.
 - [x] Replace credential-like values in `.env.example` with placeholders.
-- [x] Record the confirmed baseline findings and engineering gates.
-- [ ] Review repository history for credential exposure and rotate any affected keys.
-- [ ] Add CI checks for secret scanning, formatting, type checking and tests.
-
-**Exit criteria:** no credentials in tracked examples; baseline and known limitations documented.
+- [x] Document baseline findings and engineering gates.
+- [ ] Review repository history for credential exposure and rotate affected keys.
+- [ ] Add CI checks for secrets, formatting, type checking and tests.
 
 ### P1 — Data ingestion and historical candle integrity
-- [ ] Specify canonical candle schema: venue, symbol, interval, open time, close time, OHLCV, source and ingestion timestamp.
-- [ ] Add validation for invalid OHLC relationships, non-positive prices, negative volume, duplicate timestamps and missing intervals.
-- [ ] Define candle finalization semantics; do not treat every update to an open candle as a new completed candle.
-- [ ] Implement historical import with pagination, rate-limit handling, resumability and provenance.
+- [x] Define canonical candle schema: venue, symbol, interval, open/close time, OHLCV, source and ingestion timestamp.
+- [x] Validate OHLC relationships, positive prices, non-negative volume and interval semantics.
+- [x] Audit series for duplicate timestamps, missing intervals and mixed series metadata.
+- [ ] Define candle-finalization semantics; open-candle updates must not become duplicate completed candles.
+- [ ] Implement historical import with pagination, rate limits, resumability and provenance.
 - [ ] Persist immutable raw data and normalized datasets separately.
 - [ ] Add deterministic replay from stored data.
 
-**Exit criteria:** a dataset can be rebuilt and audited; quality report identifies gaps, duplicates and rejected rows.
+**Exit criteria:** datasets can be rebuilt and audited; quality reports identify gaps, duplicates and rejected rows.
 
 ### P2 — Official Kronos integration
-- [ ] Pin the upstream Kronos source revision and document license/model provenance.
-- [ ] Select a compatible pretrained model and tokenizer based on hardware and sequence requirements.
-- [ ] Implement a Python adapter around the official inference API; do not reimplement model internals speculatively.
-- [ ] Remove random prediction fallback. If the model is unavailable, return an explicit unavailable/error state.
-- [ ] Add input schema validation, normalization parity, model version and inference metadata.
-- [ ] Test deterministic behavior where supported and compare adapter output with upstream examples.
+- [ ] Pin upstream source revision and document license/model provenance.
+- [ ] Select compatible pretrained model/tokenizer for hardware and sequence requirements.
+- [ ] Implement adapter around official inference API; do not speculate about internals.
+- [ ] Remove random prediction fallback; return explicit unavailable/error state.
+- [ ] Add input validation, normalization parity, model version and inference metadata.
+- [ ] Compare adapter output with upstream examples.
 
-**Exit criteria:** reproducible inference using the official model and tokenizer, with no synthetic fallback represented as model output.
-
-### P3 — Training and fine-tuning experiments
-- [ ] Establish whether fine-tuning is justified; begin with pretrained inference as the baseline.
-- [ ] Define instrument/timeframe-specific datasets and minimum data requirements.
-- [ ] Use chronological train/validation/test partitions and a documented leakage policy.
-- [ ] Record configuration, random seeds, data snapshot, code revision and model artifact hashes.
-- [ ] Compare pretrained inference against fine-tuned variants and simple baselines.
+### P3 — Training and fine-tuning
+- [ ] Establish whether fine-tuning is justified; pretrained inference is the baseline.
+- [ ] Define instrument/timeframe datasets and minimum data requirements.
+- [ ] Use chronological splits and documented leakage policy.
+- [ ] Record configuration, seeds, data snapshot, code revision and artifact hashes.
+- [ ] Compare pretrained and fine-tuned variants with simple baselines.
 - [ ] Track compute, memory, training duration and artifact lineage.
 
-**Exit criteria:** experiment is reproducible and demonstrates out-of-sample results against explicit baselines.
-
-### P4 — Evaluation and research metrics
-- [ ] Evaluate forecast errors by horizon and market regime (MAE, RMSE and scale-aware metrics).
-- [ ] Compare against naive persistence and simple statistical baselines.
+### P4 — Evaluation
+- [ ] Evaluate forecast errors by horizon and regime (MAE, RMSE, scale-aware metrics).
+- [ ] Compare against persistence and simple statistical baselines.
 - [ ] Report uncertainty/calibration only when methodologically supported.
-- [ ] Keep forecast evaluation separate from any hypothetical strategy simulation.
-- [ ] If strategy research is later approved, account for fees, spread, slippage, funding and execution assumptions; report drawdown and risk-adjusted metrics without optimizing on the test set.
+- [ ] Keep forecast evaluation separate from hypothetical strategy simulation.
+- [ ] Document fees, spread, slippage and funding in any later approved research simulation.
 
-**Exit criteria:** complete evaluation report with limitations and no unsupported performance claims.
-
-### P5 — Observability and reliability
+### P5 — Observability
 - [ ] Expose feed mode, data freshness, candle completeness and ingestion lag.
-- [ ] Expose model readiness, model version, inference latency and error rate.
-- [ ] Persist prediction records and later observed outcomes for evaluation.
+- [ ] Expose model readiness, version, inference latency and error rate.
+- [ ] Persist predictions and subsequent observed outcomes.
 - [ ] Add structured logs, health checks, graceful shutdown and bounded queues.
-- [ ] Label synthetic/replay/live sources clearly in the dashboard.
-
-**Exit criteria:** operators can distinguish stale data, unavailable model, synthetic replay and genuine market observations.
+- [ ] Label synthetic, replay and genuine market sources distinctly.
 
 ### P6 — Release hardening
 - [ ] Add unit, integration, contract and regression tests.
 - [ ] Validate clean installation and production build in CI.
-- [ ] Review dependency, container and secret-management posture.
-- [ ] Document setup, dataset refresh, model acquisition, reproducibility and recovery.
-- [ ] Keep all live order execution disabled; any future change requires a separate security and risk review.
+- [ ] Review dependency and secret-management posture.
+- [ ] Document setup, data refresh, model acquisition, reproducibility and recovery.
+- [ ] Keep live order execution disabled; any future change requires separate review.
 
-**Exit criteria:** reproducible research release with CI evidence and documented known limitations.
+## 5. Immediate order
 
-## 5. Immediate task order
-
-1. Secure credentials and repository history.
+1. Secure credentials and inspect repository history.
 2. Establish CI and baseline test coverage.
-3. Define and validate the canonical candle schema.
+3. Define and validate canonical candle schema.
 4. Implement historical ingestion and deterministic replay.
 5. Integrate official Kronos inference.
-6. Build reproducible training/fine-tuning experiments only after data quality is proven.
-7. Publish forecast evaluation and observability.
+6. Run reproducible training/fine-tuning only after data quality is proven.
+7. Publish evaluation and observability.
 
 ## 6. Definition of done
 
-A milestone is complete only when its code, tests, reproducible evidence, limitations and documentation are committed. A README badge, simulated metric or successful process startup is not proof of model quality or operational readiness.
+A milestone is complete only with committed code, tests, reproducible evidence, limitations and documentation. Simulated metrics or successful startup do not prove model quality or operational readiness.
