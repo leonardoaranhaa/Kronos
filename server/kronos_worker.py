@@ -42,12 +42,15 @@ class KronosWorker:
         sys.path.insert(0, str(repo_path))
         from model import Kronos, KronosTokenizer, KronosPredictor
 
-        if torch.cuda.is_available():
-            device = os.getenv("KRONOS_DEVICE", "cuda:0")
+        configured_device = os.getenv("KRONOS_DEVICE") or None
+        if configured_device:
+            device = configured_device
+        elif torch.cuda.is_available():
+            device = "cuda:0"
         elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            device = os.getenv("KRONOS_DEVICE", "mps")
+            device = "mps"
         else:
-            device = os.getenv("KRONOS_DEVICE", "cpu")
+            device = "cpu"
 
         self.device = device
         self.max_context = min(512, max(32, int(os.getenv("KRONOS_MAX_CONTEXT", "400"))))
