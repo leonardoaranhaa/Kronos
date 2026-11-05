@@ -111,6 +111,6 @@ export function auditCandleSeries(candles: CanonicalCandle[]): CandleSeriesQuali
     duplicateOpenTimes: [...duplicates].sort((a, b) => a - b),
     missingIntervals,
     receivedCount: candles.length,
-    acceptedCount: validCandles.length - duplicates.size
+    acceptedCount: new Set(validCandles.map(candle => candle.openTime)).size
   };
 }
