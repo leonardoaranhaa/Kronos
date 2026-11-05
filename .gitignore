@@ -15,6 +15,10 @@ build/
 .env.test.local
 .env.production.local
 
+# Downloaded upstream source, weights and market-data snapshots
+external/Kronos/
+data/
+
 # Python / PyTorch
 __pycache__/
 *.pyc
