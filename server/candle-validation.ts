@@ -20,8 +20,8 @@ export function validateCanonicalCandle(candle: CanonicalCandle): CandleValidati
   const errors: string[] = [];
   const intervalMs = intervalToMilliseconds(candle.interval);
 
-  if (!candle.venue.trim()) errors.push('venue is required');
-  if (!candle.symbol.trim()) errors.push('symbol is required');
+  if (typeof candle.venue !== 'string' || !candle.venue.trim()) errors.push('venue is required');
+  if (typeof candle.symbol !== 'string' || !candle.symbol.trim()) errors.push('symbol is required');
   if (intervalMs === null) errors.push(`unsupported interval: ${candle.interval}`);
 
   const fields = [
