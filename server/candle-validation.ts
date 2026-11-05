@@ -43,7 +43,10 @@ export function validateCanonicalCandle(candle: CanonicalCandle): CandleValidati
   }
   if (candle.closeTime <= candle.openTime) errors.push('closeTime must be later than openTime');
   if (intervalMs !== null) {
-    if (candle.openTime % intervalMs !== 0) errors.push('openTime is not aligned to the interval boundary');
+    const alignmentOffset = candle.interval === '1w' ? 345_600_000 : 0; // Binance weekly candles open Monday 00:00 UTC.
+    if ((candle.openTime - alignmentOffset) % intervalMs !== 0) {
+      errors.push('openTime is not aligned to the interval boundary');
+    }
     if (candle.closeTime !== candle.openTime + intervalMs - 1) {
       errors.push('closeTime does not match the inclusive interval boundary');
     }
