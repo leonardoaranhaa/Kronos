@@ -89,6 +89,8 @@ export class KronosBridge extends EventEmitter {
       return indicators;
     }
     if (history.length < 32) return indicators;
+    // Synthetic replay is useful for UI testing, but must never be presented as real market input.
+    if (!history.every(item => item.venue === 'binance' && item.source !== 'replay')) return indicators;
 
     const payload = JSON.stringify({
       type: 'INFER',
