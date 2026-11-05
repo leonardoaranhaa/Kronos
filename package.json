@@ -9,6 +9,7 @@
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "test:candles": "tsx --test tests/candle-validation.test.ts",
     "test:monte-carlo": "tsx server/monte_carlo.ts"
   },
   "dependencies": {
