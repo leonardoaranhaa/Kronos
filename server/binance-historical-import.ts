@@ -1,11 +1,11 @@
 import { loadEnvFile } from './load-env';
-loadEnvFile();
-
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { CanonicalCandle } from '../shared/types';
 import { auditCandleSeries, intervalToMilliseconds, validateCanonicalCandle } from './candle-validation';
+
+loadEnvFile();
 
 const symbol = (process.env.SYMBOL || 'BTCUSDT').toUpperCase();
 const interval = process.env.TIMEFRAME || '5m';
