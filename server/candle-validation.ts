@@ -5,6 +5,7 @@ import {
 } from '../shared/types';
 
 const INTERVAL_MS: Record<string, number> = {
+  '1s': 1_000,
   '1m': 60_000, '3m': 180_000, '5m': 300_000, '15m': 900_000,
   '30m': 1_800_000, '1h': 3_600_000, '2h': 7_200_000,
   '4h': 14_400_000, '6h': 21_600_000, '8h': 28_800_000,
@@ -32,6 +33,9 @@ export function validateCanonicalCandle(candle: CanonicalCandle): CandleValidati
   ] as const;
   for (const [field, value] of fields) {
     if (!Number.isFinite(value)) errors.push(`${field} must be finite`);
+  }
+  if (candle.quoteVolume !== undefined && (!Number.isFinite(candle.quoteVolume) || candle.quoteVolume < 0)) {
+    errors.push('quoteVolume must be finite and non-negative');
   }
 
   if (candle.openTime < 0 || candle.closeTime < 0 || candle.ingestedAt < 0) {
@@ -61,7 +65,7 @@ export function validateCanonicalCandle(candle: CanonicalCandle): CandleValidati
   return { valid: errors.length === 0, errors };
 }
 
-/** Audits series without silently sorting, deduplicating, repairing or discarding input. */
+/** Audits series without silently repairing, deduplicating or discarding input. */
 export function auditCandleSeries(candles: CanonicalCandle[]): CandleSeriesQuality {
   const errors: string[] = [];
   const duplicates = new Set<number>();
@@ -82,11 +86,12 @@ export function auditCandleSeries(candles: CanonicalCandle[]): CandleSeriesQuali
   const sorted = [...validCandles].sort((a, b) => a.openTime - b.openTime);
   const missingIntervals: number[] = [];
   if (sorted.length > 1) {
-    const intervalMs = intervalToMilliseconds(sorted[0].interval);
+    const first = sorted[0];
+    const intervalMs = intervalToMilliseconds(first.interval);
     for (let i = 1; i < sorted.length; i++) {
-      if (sorted[i].venue !== sorted[0].venue ||
-          sorted[i].symbol !== sorted[0].symbol ||
-          sorted[i].interval !== sorted[0].interval) {
+      if (sorted[i].venue !== first.venue ||
+          sorted[i].symbol !== first.symbol ||
+          sorted[i].interval !== first.interval) {
         errors.push('series contains mixed venue, symbol or interval values');
         break;
       }
