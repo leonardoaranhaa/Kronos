@@ -1,3 +1,6 @@
+import { loadEnvFile } from './load-env';
+loadEnvFile();
+
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
