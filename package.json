@@ -10,7 +10,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test:candles": "tsx --test tests/candle-validation.test.ts",
-    "test:monte-carlo": "tsx server/monte_carlo.ts"
+    "test:monte-carlo": "tsx server/monte_carlo.ts",
+    "import:binance": "tsx server/binance-historical-import.ts",
+    "test:binance": "tsx --test tests/binance-feed.test.ts"
   },
   "dependencies": {
     "express": "^4.19.2",
