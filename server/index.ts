@@ -42,8 +42,13 @@ async function loadHistoricalData(): Promise<void> {
   if (!quality.valid) {
     throw new Error(`Historical dataset failed integrity audit: ${quality.errors.join('; ')}`);
   }
-  if (candles.some(candle => candle.symbol !== SYMBOL || candle.interval !== TIMEFRAME)) {
-    throw new Error('Historical dataset symbol/timeframe does not match SYMBOL/TIMEFRAME configuration');
+  if (candles.some(candle =>
+    candle.venue !== 'binance' ||
+    candle.source !== 'historical' ||
+    candle.symbol !== SYMBOL ||
+    candle.interval !== TIMEFRAME
+  )) {
+    throw new Error('Historical dataset provenance, symbol or timeframe does not match the Binance configuration');
   }
   candleHistory.push(...candles.slice(-MAX_HISTORY));
   console.log(`[Data] Loaded ${candleHistory.length} validated historical candles`);
