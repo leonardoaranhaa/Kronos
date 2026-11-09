@@ -54,6 +54,7 @@ async function loadHistoricalData(): Promise<void> {
     throw new Error('Historical dataset provenance, symbol or timeframe does not match the Binance configuration');
   }
   candleHistory.push(...candles.slice(-MAX_HISTORY));
+  if (FEED_MODE === 'replay') feed.setReplayCandles(candles);
   console.log(`[Data] Loaded ${candleHistory.length} validated historical candles`);
 }
 
