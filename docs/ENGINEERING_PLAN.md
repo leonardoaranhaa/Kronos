@@ -1,7 +1,7 @@
 # KRONOS — Engineering Plan
 
 **Status:** Binance public-data feed and official Kronos adapter implemented on the engineering branch; runtime validation pending.  
-**Working branch:** `engineering/foundation-audit`  
+**Working branch:** `engineering/p1-data-integrity` (based on `engineering/foundation-audit`)  
 **Scope:** Read-only market data, model inference, historical research, validation and observability. No order submission or real-money execution.
 
 ## 1. Source-of-truth integrations
@@ -49,6 +49,8 @@
 - [x] Document baseline and research-only gates.
 
 ### P1 — Data ingestion and integrity
+
+**Current correction branch:** `engineering/p1-data-integrity`. Changes are proposed for review; no milestone is marked complete until tests and runtime evidence are produced.
 - [x] Canonical candle schema with quote-asset volume.
 - [x] OHLCV and interval-boundary validation.
 - [x] Duplicate, gap and mixed-series audit.
