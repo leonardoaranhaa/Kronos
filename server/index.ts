@@ -58,7 +58,7 @@ async function loadHistoricalData(): Promise<void> {
   } else {
     candleHistory.push(...candles.slice(-MAX_HISTORY));
   }
-  console.log(`[Data] Loaded ${candleHistory.length} validated historical candles`);
+  console.log(`[Data] Validated ${candles.length} historical candles; preloaded ${candleHistory.length} into live-feed history`);
 }
 
 bridge.on('model-status', data => broadcast({ type: 'KRONOS_MODEL_STATUS', payload: data }));
