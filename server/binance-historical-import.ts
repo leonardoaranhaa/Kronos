@@ -33,7 +33,11 @@ async function fetchPage(cursor: number): Promise<unknown[]> {
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    if (response.ok) return await response.json() as unknown[];
+    if (response.ok) {
+      const payload: unknown = await response.json();
+      if (!Array.isArray(payload)) throw new Error('Binance klines response was not an array');
+      return payload;
+    }
     if (response.status === 418 || response.status === 429) {
       const retryAfter = Number(response.headers.get('retry-after') || 0);
       const waitMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(30_000, 1_000 * (2 ** attempt));
@@ -55,8 +59,10 @@ async function main() {
     pageCount += 1;
     rawPages.push(JSON.stringify({ fetchedAt: Date.now(), cursor, rows: page }));
 
-    for (const row of page) {
-      if (!Array.isArray(row) || row.length < 11) continue;
+    for (const [rowIndex, row] of page.entries()) {
+      if (!Array.isArray(row) || row.length < 11) {
+        throw new Error(`Malformed Binance kline row at page ${pageCount}, index ${rowIndex}: expected at least 11 fields`);
+      }
       const candle: CanonicalCandle = {
         venue: 'binance',
         symbol,
@@ -78,13 +84,20 @@ async function main() {
       else throw new Error(`Invalid Binance candle at ${candle.openTime}: ${validation.errors.join(', ')}`);
     }
 
-    const lastOpenTime = Number((page[page.length - 1] as unknown[])[0]);
-    const nextCursor = lastOpenTime + intervalMs;
+    const lastRow = page[page.length - 1];
+    if (!Array.isArray(lastRow) || !Number.isFinite(Number(lastRow[0]))) {
+      throw new Error('Binance pagination returned an invalid final row');
+    }
+    const nextCursor = Number(lastRow[0]) + intervalMs;
     if (!Number.isFinite(nextCursor) || nextCursor <= cursor) {
       throw new Error('Binance pagination did not advance; aborting to prevent an infinite loop');
     }
     cursor = nextCursor;
     if (page.length < 1000) break;
+  }
+
+  if (candles.length === 0) {
+    throw new Error('Historical import produced zero completed candles; no dataset or manifest was written');
   }
 
   candles.sort((a, b) => a.openTime - b.openTime);
@@ -99,8 +112,9 @@ async function main() {
   const rawPath = join(rawDir, `${stem}.jsonl`);
   const normalizedPath = join(normalizedDir, `${stem}.jsonl`);
   const rawContent = rawPages.join('\n') + (rawPages.length ? '\n' : '');
-  const normalizedContent = candles.map(candle => JSON.stringify(candle)).join('\n') + (candles.length ? '\n' : '');
-  const sha256 = createHash('sha256').update(normalizedContent).digest('hex');
+  const normalizedContent = candles.map(candle => JSON.stringify(candle)).join('\n') + '\n';
+  const rawSha256 = createHash('sha256').update(rawContent).digest('hex');
+  const normalizedSha256 = createHash('sha256').update(normalizedContent).digest('hex');
 
   await writeFile(rawPath, rawContent, { flag: 'wx' });
   await writeFile(normalizedPath, normalizedContent, { flag: 'wx' });
@@ -116,7 +130,8 @@ async function main() {
     sourceEndpoint: `${baseUrl}/api/v3/klines`,
     rawPath,
     normalizedPath,
-    normalizedSha256: sha256,
+    rawSha256,
+    normalizedSha256,
     quality
   };
   const manifestPath = join(manifestDir, `${stem}.manifest.json`);
