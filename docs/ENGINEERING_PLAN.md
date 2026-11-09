@@ -57,6 +57,9 @@
 - [x] Binance WebSocket adapter; only finalized klines are emitted.
 - [x] Historical REST importer with pagination, rate-limit retries and raw/normalized snapshots.
 - [x] SHA-256 manifest for each normalized snapshot.
+- [x] Raw and normalized snapshot SHA-256 hashes.
+- [x] Empty datasets and malformed Binance rows fail closed.
+- [x] Deterministic chronological replay from validated historical snapshots; random replay removed.
 - [x] Startup loading of a validated historical snapshot.
 - [ ] Runtime test against the live public stream and a historical import.
 
