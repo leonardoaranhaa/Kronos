@@ -33,10 +33,11 @@ Change `SYMBOL` and `TIMEFRAME` in `.env` before importing a different series. O
 
 - `npm run test:candles`
 - `npm run test:binance`
+- `npm run test:replay`
 - `npm run build`
 
 These checks are provided but must be run in the developer's environment. No build, live stream, model download or inference result is claimed by this document.
 
 ## Data boundaries
 
-The historical importer writes raw response pages, normalized JSONL candles and a SHA-256 manifest. The WebSocket adapter accepts finalized klines only. Synthetic replay is labeled and blocked from official model inference. No API key is required for public market data.
+The historical importer writes raw response pages, normalized JSONL candles and a SHA-256 manifest. The WebSocket adapter accepts finalized klines only. Replay mode consumes only a validated historical Binance snapshot from `HISTORICAL_DATA_PATH`, emits candles in timestamp order, and completes after the snapshot is exhausted. Random synthetic replay is disabled. Replay candles are labeled `replay` and are blocked from official model inference. No API key is required for public market data.
