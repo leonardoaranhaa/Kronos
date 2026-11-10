@@ -30,21 +30,38 @@ export function normalizeBinanceKlineRow(
     ingestedAt
   };
 
-  if (candle.closeTime >= now) return null;
   const validation = validateCanonicalCandle(candle);
   if (!validation.valid) {
     throw new Error(`Invalid Binance candle at ${candle.openTime}: ${validation.errors.join(', ')}`);
   }
+  if (candle.closeTime >= now) return null;
   return candle;
 }
 
 /** Returns the next REST pagination cursor and rejects non-advancing pages. */
 export function getNextBinanceCursor(page: unknown[], cursor: number, intervalMs: number): number {
-  const lastRow = page[page.length - 1];
-  if (!Array.isArray(lastRow) || !Number.isFinite(Number(lastRow[0]))) {
-    throw new Error('Binance pagination returned an invalid final row');
+  if (page.length === 0) throw new Error('Binance pagination returned an empty page');
+  if (!Number.isFinite(cursor) || !Number.isFinite(intervalMs) || intervalMs <= 0) {
+    throw new Error('Binance pagination cursor and interval must be finite; interval must be positive');
   }
-  const nextCursor = Number(lastRow[0]) + intervalMs;
+
+  const openTimes = page.map((row, index) => {
+    if (!Array.isArray(row) || !Number.isFinite(Number(row[0]))) {
+      throw new Error(`Binance pagination returned an invalid row at index ${index}`);
+    }
+    return Number(row[0]);
+  });
+
+  if (openTimes[0] < cursor) {
+    throw new Error('Binance pagination page begins before the requested cursor');
+  }
+  for (let index = 1; index < openTimes.length; index += 1) {
+    if (openTimes[index] <= openTimes[index - 1]) {
+      throw new Error('Binance pagination rows are not strictly chronological');
+    }
+  }
+
+  const nextCursor = openTimes[openTimes.length - 1] + intervalMs;
   if (!Number.isFinite(nextCursor) || nextCursor <= cursor) {
     throw new Error('Binance pagination did not advance; aborting to prevent an infinite loop');
   }
