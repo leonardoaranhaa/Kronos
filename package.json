@@ -14,7 +14,8 @@
     "import:binance": "tsx server/binance-historical-import.ts",
     "test:binance": "tsx --test tests/binance-feed.test.ts",
     "test:replay": "tsx --test tests/historical-replay.test.ts",
-    "test:import": "tsx --test tests/binance-import.test.ts"
+    "test:import": "tsx --test tests/binance-import.test.ts",
+    "test:health": "tsx --test tests/health.test.ts"
   },
   "dependencies": {
     "express": "^4.19.2",
