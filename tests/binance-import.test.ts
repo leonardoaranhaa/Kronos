@@ -18,9 +18,7 @@ test('normalizes a valid completed Binance kline row', () => {
 });
 
 test('skips a candle that has not closed yet', () => {
-  const row = [...validRow];
-  row[6] = 119_999;
-  assert.equal(normalizeBinanceKlineRow(row, 'BTCUSDT', '1m', 120_000, 120_000), null);
+  assert.equal(normalizeBinanceKlineRow(validRow, 'BTCUSDT', '1m', 60_000, 59_999), null);
 });
 
 test('rejects malformed rows and invalid numeric candle values', () => {
