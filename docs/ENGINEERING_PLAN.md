@@ -61,6 +61,7 @@
 - [x] Empty datasets and malformed Binance rows fail closed.
 - [x] Deterministic chronological replay from validated historical snapshots; random replay removed.
 - [x] Startup loading of a validated historical snapshot.
+- [x] Offline unit tests for Binance row normalization, pagination cursor safety and snapshot hashes (execution pending CI).
 - [ ] Runtime test against the live public stream and a historical import.
 
 ### P2 — Official Kronos integration
@@ -84,12 +85,13 @@
 
 ### P5 — Observability
 - [x] Expose feed and model status through health endpoint.
+- [x] Return HTTP 503 / `degraded` when feed or official model is not ready.
 - [x] Emit data-quality warnings for invalid, duplicate or out-of-order candles.
 - [ ] Persist forecasts and later observed outcomes.
 - [ ] Add structured logs, graceful recovery and latency metrics.
 
 ### P6 — Release hardening
-- [ ] Add CI checks and complete unit/integration test coverage.
+- [x] Add offline GitHub Actions CI for candle, feed, importer, replay, health, build and syntax checks (first run pending).
 - [ ] Validate clean install, historical import, WebSocket reconnect and model startup.
 - [ ] Review dependency and secret-management posture.
 - [ ] Keep live order execution disabled.
