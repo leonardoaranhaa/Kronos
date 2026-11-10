@@ -1,6 +1,6 @@
 # KRONOS — Engineering Plan
 
-**Status:** Binance public-data feed and official Kronos adapter implemented on the engineering branch; runtime validation pending.  
+**Status:** Offline CI and research build pass on `engineering/p1-data-integrity`; live data and model runtime validation remain pending.  
 **Working branch:** `engineering/p1-data-integrity` (based on `engineering/foundation-audit`)  
 **Scope:** Read-only market data, model inference, historical research, validation and observability. No order submission or real-money execution.
 
@@ -61,7 +61,7 @@
 - [x] Empty datasets and malformed Binance rows fail closed.
 - [x] Deterministic chronological replay from validated historical snapshots; random replay removed.
 - [x] Startup loading of a validated historical snapshot.
-- [x] Offline unit tests for Binance row normalization, pagination cursor safety and snapshot hashes (execution pending CI).
+- [x] Offline unit tests for Binance row normalization, pagination cursor safety and snapshot hashes (CI passed; 6/6).
 - [ ] Runtime test against the live public stream and a historical import.
 
 ### P2 — Official Kronos integration
@@ -91,7 +91,7 @@
 - [ ] Add structured logs, graceful recovery and latency metrics.
 
 ### P6 — Release hardening
-- [x] Add offline GitHub Actions CI for candle, feed, importer, replay, health, build and syntax checks (first run pending).
+- [x] Add offline GitHub Actions CI for candle, feed, importer, replay, health, build and syntax checks (passed on commit `9baf3a5`; PR run #16).
 - [ ] Validate clean install, historical import, WebSocket reconnect and model startup.
 - [ ] Review dependency and secret-management posture.
 - [ ] Keep live order execution disabled.
