@@ -1,9 +1,9 @@
 import { loadEnvFile } from './load-env';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { CanonicalCandle } from '../shared/types';
-import { auditCandleSeries, intervalToMilliseconds, validateCanonicalCandle } from './candle-validation';
+import { auditCandleSeries, intervalToMilliseconds } from './candle-validation';
+import { getNextBinanceCursor, normalizeBinanceKlineRow, sha256Content } from './binance-import-core';
 
 loadEnvFile();
 
@@ -59,39 +59,12 @@ async function main() {
     pageCount += 1;
     rawPages.push(JSON.stringify({ fetchedAt: Date.now(), cursor, rows: page }));
 
-    for (const [rowIndex, row] of page.entries()) {
-      if (!Array.isArray(row) || row.length < 11) {
-        throw new Error(`Malformed Binance kline row at page ${pageCount}, index ${rowIndex}: expected at least 11 fields`);
-      }
-      const candle: CanonicalCandle = {
-        venue: 'binance',
-        symbol,
-        interval,
-        openTime: Number(row[0]),
-        open: Number(row[1]),
-        high: Number(row[2]),
-        low: Number(row[3]),
-        close: Number(row[4]),
-        volume: Number(row[5]),
-        closeTime: Number(row[6]),
-        quoteVolume: Number(row[7]),
-        source: 'historical',
-        ingestedAt: Date.now()
-      };
-      if (candle.closeTime >= now) continue;
-      const validation = validateCanonicalCandle(candle);
-      if (validation.valid) candles.push(candle);
-      else throw new Error(`Invalid Binance candle at ${candle.openTime}: ${validation.errors.join(', ')}`);
+    for (const row of page) {
+      const candle = normalizeBinanceKlineRow(row, symbol, interval, Date.now(), now);
+      if (candle) candles.push(candle);
     }
 
-    const lastRow = page[page.length - 1];
-    if (!Array.isArray(lastRow) || !Number.isFinite(Number(lastRow[0]))) {
-      throw new Error('Binance pagination returned an invalid final row');
-    }
-    const nextCursor = Number(lastRow[0]) + intervalMs;
-    if (!Number.isFinite(nextCursor) || nextCursor <= cursor) {
-      throw new Error('Binance pagination did not advance; aborting to prevent an infinite loop');
-    }
+    const nextCursor = getNextBinanceCursor(page, cursor, intervalMs);
     cursor = nextCursor;
     if (page.length < 1000) break;
   }
@@ -113,8 +86,8 @@ async function main() {
   const normalizedPath = join(normalizedDir, `${stem}.jsonl`);
   const rawContent = rawPages.join('\n') + (rawPages.length ? '\n' : '');
   const normalizedContent = candles.map(candle => JSON.stringify(candle)).join('\n') + '\n';
-  const rawSha256 = createHash('sha256').update(rawContent).digest('hex');
-  const normalizedSha256 = createHash('sha256').update(normalizedContent).digest('hex');
+  const rawSha256 = sha256Content(rawContent);
+  const normalizedSha256 = sha256Content(normalizedContent);
 
   await writeFile(rawPath, rawContent, { flag: 'wx' });
   await writeFile(normalizedPath, normalizedContent, { flag: 'wx' });
