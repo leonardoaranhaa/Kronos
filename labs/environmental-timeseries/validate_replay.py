@@ -135,6 +135,37 @@ def replay(
     return events
 
 
+def summarize_quality(events: list[dict[str, object]]) -> dict[str, object]:
+    """Return deterministic descriptive quality metrics for validated samples."""
+    values = [float(event["value"]) for event in events]
+    gaps = [
+        float(event["gap_seconds"])
+        for event in events
+        if event["gap_seconds"] is not None
+    ]
+    deltas = [
+        float(event["delta"])
+        for event in events
+        if event["delta"] is not None
+    ]
+    out_of_range = sum(
+        event["gap_status"] == "exceeds_expected" for event in events
+    )
+    absolute_deltas = [abs(delta) for delta in deltas]
+
+    return {
+        "record_count": len(values),
+        "interval_count": len(gaps),
+        "out_of_range_intervals": out_of_range,
+        "max_gap_seconds": max(gaps) if gaps else None,
+        "min_value": min(values),
+        "max_value": max(values),
+        "mean_value": math.fsum(values) / len(values),
+        "max_absolute_delta": max(absolute_deltas) if absolute_deltas else None,
+        "total_absolute_variation": math.fsum(absolute_deltas),
+    }
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Validate and replay a synthetic environmental time series."
@@ -165,17 +196,19 @@ def main(argv: list[str]) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
+    events = replay(
+        points,
+        args.expected_interval_seconds,
+        args.tolerance_seconds,
+    )
     print(json.dumps({
         "status": "ok",
         "records": len(points),
         "sha256": digest,
         "expected_interval_seconds": args.expected_interval_seconds,
         "tolerance_seconds": args.tolerance_seconds,
-        "replay": replay(
-            points,
-            args.expected_interval_seconds,
-            args.tolerance_seconds,
-        ),
+        "quality": summarize_quality(events),
+        "replay": events,
     }, separators=(",", ":"), sort_keys=True))
     return 0
 
