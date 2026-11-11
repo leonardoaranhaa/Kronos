@@ -25,6 +25,20 @@ Each record includes its sequence, original timestamp, numeric value, value delt
 
 The validator reports gaps; it does not discard or modify measurements. Timestamps are timezone-aware, so elapsed time is calculated between actual instants even when UTC offsets differ.
 
+## Data quality summary
+
+The JSON output includes a deterministic `quality` object alongside the per-record replay:
+
+- `record_count`: number of validated measurements.
+- `interval_count`: number of elapsed intervals between adjacent measurements.
+- `out_of_range_intervals`: intervals classified as exceeding the configured cadence and tolerance.
+- `max_gap_seconds`: largest observed interval, or null for a single-record series.
+- `min_value`, `max_value`, and `mean_value`: descriptive measurement statistics.
+- `max_absolute_delta`: largest absolute change between adjacent measurements, or null when there is no interval.
+- `total_absolute_variation`: sum of absolute changes between adjacent measurements.
+
+These are descriptive checks, not automatic judgments about whether a measurement is physically valid. Domain-specific value limits must be defined separately for each environmental dataset.
+
 ## Configure the expected cadence
 
 The policy is optional. Without it, the replay reports elapsed time and labels subsequent gaps not_evaluated.
