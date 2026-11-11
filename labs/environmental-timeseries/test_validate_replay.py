@@ -46,10 +46,10 @@ class TimeSeriesLabTests(unittest.TestCase):
 
     def test_quality_summary_reports_ranges_gaps_and_variation(self):
         path = self.write_csv(
-            "timestamp,value\\n"
-            "2026-01-01T00:00:00Z,10\\n"
-            "2026-01-01T01:00:00Z,12.5\\n"
-            "2026-01-01T03:00:00Z,9.5\\n"
+            "timestamp,value\n"
+            "2026-01-01T00:00:00Z,10\n"
+            "2026-01-01T01:00:00Z,12.5\n"
+            "2026-01-01T03:00:00Z,9.5\n"
         )
         points, _ = load_points(path)
         events = replay(points, expected_interval_seconds=3600)
@@ -65,7 +65,7 @@ class TimeSeriesLabTests(unittest.TestCase):
         self.assertEqual(summary["total_absolute_variation"], 5.5)
 
     def test_quality_summary_handles_single_record_without_intervals(self):
-        path = self.write_csv("timestamp,value\\n2026-01-01T00:00:00Z,7\\n")
+        path = self.write_csv("timestamp,value\n2026-01-01T00:00:00Z,7\n")
         points, _ = load_points(path)
         summary = summarize_quality(replay(points))
         self.assertEqual(summary["record_count"], 1)
