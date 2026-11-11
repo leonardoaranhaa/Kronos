@@ -1,6 +1,6 @@
 # Environmental Time-Series Lab
 
-This isolated lab validates the KRONOS data-engineering concepts against synthetic environmental measurements. It is not connected to market feeds, trading logic, model inference, or order execution.
+This isolated lab validates and replays synthetic environmental measurements. It is not connected to market feeds, trading logic, model inference, or order execution.
 
 ## Data contract
 
@@ -13,6 +13,12 @@ CSV columns: `timestamp,value`.
 - Timestamps must be ISO-8601 strings with a timezone and strictly increasing.
 - Values must be finite numbers.
 - Invalid UTF-8 and malformed CSV quoting are rejected.
+
+## Replay output
+
+Each record includes its sequence, original timestamp, numeric value, value delta, and elapsed time since the previous sample (`gap_seconds`). The first record has no previous sample, so its elapsed time is `null`. Elapsed time is calculated from timezone-aware timestamps, so equivalent instants with different UTC offsets are compared correctly.
+
+The replay reports elapsed time; it does not assume a sampling frequency or classify a gap as an error.
 
 ## Run
 
