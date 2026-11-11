@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from validate_replay import load_points, replay
+from validate_replay import load_points, replay, validate_gap_policy
 
 
 class TimeSeriesLabTests(unittest.TestCase):
