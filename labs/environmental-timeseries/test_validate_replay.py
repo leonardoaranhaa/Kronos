@@ -13,6 +13,13 @@ class TimeSeriesLabTests(unittest.TestCase):
         self.addCleanup(Path(temp.name).unlink, missing_ok=True)
         return Path(temp.name)
 
+    def write_bytes(self, content: bytes) -> Path:
+        temp = tempfile.NamedTemporaryFile(mode="wb", suffix=".csv", delete=False)
+        with temp:
+            temp.write(content)
+        self.addCleanup(Path(temp.name).unlink, missing_ok=True)
+        return Path(temp.name)
+
     def test_valid_data_hashes_and_replays_deterministically(self):
         path = self.write_csv(
             "timestamp,value\n"
@@ -42,6 +49,50 @@ class TimeSeriesLabTests(unittest.TestCase):
     def test_rejects_timezone_free_timestamps(self):
         path = self.write_csv("timestamp,value\n2026-01-01T00:00:00,10\n")
         with self.assertRaisesRegex(ValueError, "timezone"):
+            load_points(path)
+
+    def test_rejects_empty_file(self):
+        path = self.write_csv("")
+        with self.assertRaisesRegex(ValueError, "header"):
+            load_points(path)
+
+    def test_rejects_header_without_data_rows(self):
+        path = self.write_csv("timestamp,value\n")
+        with self.assertRaisesRegex(ValueError, "at least one data row"):
+            load_points(path)
+
+    def test_rejects_incorrect_header(self):
+        path = self.write_csv("time,value\n2026-01-01T00:00:00Z,10\n")
+        with self.assertRaisesRegex(ValueError, "header must be exactly"):
+            load_points(path)
+
+    def test_rejects_missing_columns(self):
+        path = self.write_csv("timestamp,value\n2026-01-01T00:00:00Z\n")
+        with self.assertRaisesRegex(ValueError, "exactly 2 columns"):
+            load_points(path)
+
+    def test_rejects_extra_columns(self):
+        path = self.write_csv(
+            "timestamp,value\n2026-01-01T00:00:00Z,10,unexpected\n"
+        )
+        with self.assertRaisesRegex(ValueError, "exactly 2 columns"):
+            load_points(path)
+
+    def test_rejects_blank_required_fields(self):
+        path = self.write_csv("timestamp,value\n2026-01-01T00:00:00Z,\n")
+        with self.assertRaisesRegex(ValueError, "timestamp and value are required"):
+            load_points(path)
+
+    def test_rejects_malformed_csv_quoting(self):
+        path = self.write_csv(
+            'timestamp,value\n2026-01-01T00:00:00Z,"10\n'
+        )
+        with self.assertRaisesRegex(ValueError, "malformed CSV"):
+            load_points(path)
+
+    def test_rejects_invalid_utf8(self):
+        path = self.write_bytes(b"timestamp,value\n\xff,10\n")
+        with self.assertRaises(UnicodeDecodeError):
             load_points(path)
 
 
