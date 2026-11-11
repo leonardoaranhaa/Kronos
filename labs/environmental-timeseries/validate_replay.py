@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import json
 import math
 import sys
@@ -23,32 +24,53 @@ def load_points(path: Path) -> tuple[list[Point], str]:
     raw = path.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     text = raw.decode("utf-8")
-    rows = csv.DictReader(text.splitlines())
+    reader = csv.reader(io.StringIO(text, newline=""), strict=True)
 
-    if rows.fieldnames != ["timestamp", "value"]:
-        raise ValueError("CSV header must be exactly: timestamp,value")
+    try:
+        header = next(reader, None)
+        if header != ["timestamp", "value"]:
+            raise ValueError("CSV header must be exactly: timestamp,value")
 
-    points: list[Point] = []
-    previous: datetime | None = None
+        points: list[Point] = []
+        previous: datetime | None = None
 
-    for line_number, row in enumerate(rows, start=2):
-        if not row.get("timestamp") or not row.get("value"):
-            raise ValueError(f"line {line_number}: timestamp and value are required")
-        try:
-            parsed = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
-            value = float(row["value"])
-        except (ValueError, TypeError) as exc:
-            raise ValueError(f"line {line_number}: invalid timestamp or numeric value") from exc
+        for row in reader:
+            line_number = reader.line_num
+            if len(row) != 2:
+                raise ValueError(
+                    f"line {line_number}: expected exactly 2 columns (timestamp,value)"
+                )
 
-        if parsed.tzinfo is None:
-            raise ValueError(f"line {line_number}: timestamp must include a timezone")
-        if not math.isfinite(value):
-            raise ValueError(f"line {line_number}: value must be finite")
-        if previous is not None and parsed <= previous:
-            raise ValueError(f"line {line_number}: timestamps must be strictly increasing")
+            timestamp, raw_value = row
+            if not timestamp.strip() or not raw_value.strip():
+                raise ValueError(
+                    f"line {line_number}: timestamp and value are required"
+                )
 
-        points.append(Point(row["timestamp"], value))
-        previous = parsed
+            try:
+                parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                value = float(raw_value)
+            except (ValueError, TypeError) as exc:
+                raise ValueError(
+                    f"line {line_number}: invalid timestamp or numeric value"
+                ) from exc
+
+            if parsed.tzinfo is None:
+                raise ValueError(
+                    f"line {line_number}: timestamp must include a timezone"
+                )
+            if not math.isfinite(value):
+                raise ValueError(f"line {line_number}: value must be finite")
+            if previous is not None and parsed <= previous:
+                raise ValueError(
+                    f"line {line_number}: timestamps must be strictly increasing"
+                )
+
+            points.append(Point(timestamp, value))
+            previous = parsed
+
+    except csv.Error as exc:
+        raise ValueError(f"malformed CSV near line {reader.line_num}: {exc}") from exc
 
     if not points:
         raise ValueError("CSV must contain at least one data row")
