@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from validate_replay import load_points, replay, validate_gap_policy
+from validate_replay import load_points, replay, summarize_quality, validate_gap_policy
 
 
 class TimeSeriesLabTests(unittest.TestCase):
@@ -43,6 +43,37 @@ class TimeSeriesLabTests(unittest.TestCase):
         events = replay(points)
         self.assertIsNone(events[0]["gap_seconds"])
         self.assertEqual(events[1]["gap_seconds"], 5400.0)
+
+    def test_quality_summary_reports_ranges_gaps_and_variation(self):
+        path = self.write_csv(
+            "timestamp,value\\n"
+            "2026-01-01T00:00:00Z,10\\n"
+            "2026-01-01T01:00:00Z,12.5\\n"
+            "2026-01-01T03:00:00Z,9.5\\n"
+        )
+        points, _ = load_points(path)
+        events = replay(points, expected_interval_seconds=3600)
+        summary = summarize_quality(events)
+        self.assertEqual(summary["record_count"], 3)
+        self.assertEqual(summary["interval_count"], 2)
+        self.assertEqual(summary["out_of_range_intervals"], 1)
+        self.assertEqual(summary["max_gap_seconds"], 7200.0)
+        self.assertEqual(summary["min_value"], 9.5)
+        self.assertEqual(summary["max_value"], 12.5)
+        self.assertAlmostEqual(summary["mean_value"], 32 / 3)
+        self.assertEqual(summary["max_absolute_delta"], 3.0)
+        self.assertEqual(summary["total_absolute_variation"], 5.5)
+
+    def test_quality_summary_handles_single_record_without_intervals(self):
+        path = self.write_csv("timestamp,value\\n2026-01-01T00:00:00Z,7\\n")
+        points, _ = load_points(path)
+        summary = summarize_quality(replay(points))
+        self.assertEqual(summary["record_count"], 1)
+        self.assertEqual(summary["interval_count"], 0)
+        self.assertEqual(summary["out_of_range_intervals"], 0)
+        self.assertIsNone(summary["max_gap_seconds"])
+        self.assertIsNone(summary["max_absolute_delta"])
+        self.assertEqual(summary["total_absolute_variation"], 0.0)
 
     def test_rejects_duplicate_or_out_of_order_timestamps(self):
         path = self.write_csv(
