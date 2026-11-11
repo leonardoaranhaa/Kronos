@@ -1,0 +1,42 @@
+name: Environmental time-series lab
+
+on:
+  push:
+    branches:
+      - engineering/p1-data-integrity
+    paths:
+      - "labs/environmental-timeseries/**"
+      - ".github/workflows/environmental-timeseries-ci.yml"
+  pull_request:
+    branches:
+      - engineering/foundation-audit
+    paths:
+      - "labs/environmental-timeseries/**"
+      - ".github/workflows/environmental-timeseries-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: environmental-timeseries-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate isolated environmental dataset
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run unit tests
+        run: python -m unittest discover -s labs/environmental-timeseries -p "test_*.py" -v
+
+      - name: Validate synthetic sample
+        run: python labs/environmental-timeseries/validate_replay.py labs/environmental-timeseries/sample.csv
