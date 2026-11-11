@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import hashlib
 import io
@@ -25,6 +26,16 @@ def parse_timestamp(value: str) -> datetime:
     if parsed.tzinfo is None:
         raise ValueError("timestamp must include a timezone")
     return parsed
+
+
+def validate_gap_policy(expected_interval_seconds: float | None,
+                        tolerance_seconds: float) -> None:
+    if expected_interval_seconds is not None and (
+        not math.isfinite(expected_interval_seconds) or expected_interval_seconds <= 0
+    ):
+        raise ValueError("expected interval must be a finite number greater than zero")
+    if not math.isfinite(tolerance_seconds) or tolerance_seconds < 0:
+        raise ValueError("gap tolerance must be a finite number greater than or equal to zero")
 
 
 def load_points(path: Path) -> tuple[list[Point], str]:
@@ -80,10 +91,19 @@ def load_points(path: Path) -> tuple[list[Point], str]:
     return points, digest
 
 
-def replay(points: list[Point]) -> list[dict[str, object]]:
+def replay(
+    points: list[Point],
+    expected_interval_seconds: float | None = None,
+    tolerance_seconds: float = 0.0,
+) -> list[dict[str, object]]:
+    validate_gap_policy(expected_interval_seconds, tolerance_seconds)
     events: list[dict[str, object]] = []
     previous_value: float | None = None
     previous_timestamp: datetime | None = None
+    allowed_gap = (
+        None if expected_interval_seconds is None
+        else expected_interval_seconds + tolerance_seconds
+    )
 
     for index, point in enumerate(points):
         current_timestamp = parse_timestamp(point.timestamp)
@@ -92,12 +112,22 @@ def replay(points: list[Point]) -> list[dict[str, object]]:
             if previous_timestamp is None
             else (current_timestamp - previous_timestamp).total_seconds()
         )
+        if gap_seconds is None:
+            gap_status = "baseline"
+        elif allowed_gap is None:
+            gap_status = "not_evaluated"
+        elif gap_seconds > allowed_gap:
+            gap_status = "exceeds_expected"
+        else:
+            gap_status = "within_expected"
+
         events.append({
             "sequence": index,
             "timestamp": point.timestamp,
             "value": point.value,
             "delta": None if previous_value is None else point.value - previous_value,
             "gap_seconds": gap_seconds,
+            "gap_status": gap_status,
         })
         previous_value = point.value
         previous_timestamp = current_timestamp
@@ -105,12 +135,32 @@ def replay(points: list[Point]) -> list[dict[str, object]]:
     return events
 
 
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Validate and replay a synthetic environmental time series."
+    )
+    parser.add_argument("csv_path", type=Path)
+    parser.add_argument(
+        "--expected-interval-seconds",
+        type=float,
+        default=None,
+        help="Expected interval between samples; omit to report gaps without classifying them.",
+    )
+    parser.add_argument(
+        "--tolerance-seconds",
+        type=float,
+        default=0.0,
+        help="Additional allowed delay beyond the expected interval (default: 0).",
+    )
+    args = parser.parse_args(argv[1:])
+    validate_gap_policy(args.expected_interval_seconds, args.tolerance_seconds)
+    return args
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print(f"Usage: {Path(argv[0]).name} <csv-path>", file=sys.stderr)
-        return 2
     try:
-        points, digest = load_points(Path(argv[1]))
+        args = parse_args(argv)
+        points, digest = load_points(args.csv_path)
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -119,7 +169,13 @@ def main(argv: list[str]) -> int:
         "status": "ok",
         "records": len(points),
         "sha256": digest,
-        "replay": replay(points),
+        "expected_interval_seconds": args.expected_interval_seconds,
+        "tolerance_seconds": args.tolerance_seconds,
+        "replay": replay(
+            points,
+            args.expected_interval_seconds,
+            args.tolerance_seconds,
+        ),
     }, separators=(",", ":"), sort_keys=True))
     return 0
 
