@@ -20,6 +20,13 @@ class Point:
     value: float
 
 
+def parse_timestamp(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("timestamp must include a timezone")
+    return parsed
+
+
 def load_points(path: Path) -> tuple[list[Point], str]:
     raw = path.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
@@ -48,17 +55,13 @@ def load_points(path: Path) -> tuple[list[Point], str]:
                 )
 
             try:
-                parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                parsed = parse_timestamp(timestamp)
                 value = float(raw_value)
             except (ValueError, TypeError) as exc:
                 raise ValueError(
                     f"line {line_number}: invalid timestamp or numeric value"
                 ) from exc
 
-            if parsed.tzinfo is None:
-                raise ValueError(
-                    f"line {line_number}: timestamp must include a timezone"
-                )
             if not math.isfinite(value):
                 raise ValueError(f"line {line_number}: value must be finite")
             if previous is not None and parsed <= previous:
@@ -80,14 +83,25 @@ def load_points(path: Path) -> tuple[list[Point], str]:
 def replay(points: list[Point]) -> list[dict[str, object]]:
     events: list[dict[str, object]] = []
     previous_value: float | None = None
+    previous_timestamp: datetime | None = None
+
     for index, point in enumerate(points):
+        current_timestamp = parse_timestamp(point.timestamp)
+        gap_seconds = (
+            None
+            if previous_timestamp is None
+            else (current_timestamp - previous_timestamp).total_seconds()
+        )
         events.append({
             "sequence": index,
             "timestamp": point.timestamp,
             "value": point.value,
             "delta": None if previous_value is None else point.value - previous_value,
+            "gap_seconds": gap_seconds,
         })
         previous_value = point.value
+        previous_timestamp = current_timestamp
+
     return events
 
 
