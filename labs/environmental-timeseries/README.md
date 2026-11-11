@@ -6,9 +6,13 @@ This isolated lab validates the KRONOS data-engineering concepts against synthet
 
 CSV columns: `timestamp,value`.
 
-- Timestamps must be ISO-8601 strings and strictly increasing.
+- The header must match exactly: `timestamp,value`.
+- At least one data row is required.
+- Every data row must contain exactly two columns; missing or extra columns are rejected.
+- Neither field may be empty.
+- Timestamps must be ISO-8601 strings with a timezone and strictly increasing.
 - Values must be finite numbers.
-- Empty files, malformed rows, duplicate timestamps, and out-of-order rows are rejected.
+- Invalid UTF-8 and malformed CSV quoting are rejected.
 
 ## Run
 
