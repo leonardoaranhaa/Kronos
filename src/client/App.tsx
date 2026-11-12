@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import PriceChart from './PriceChart';
 import AranhaPanel, { AranhaBrief } from './AranhaPanel';
+import CrawlerPanel from './CrawlerPanel';
 import { CanonicalCandle, TechnicalIndicators } from '../../shared/types';
 import type { ResearchSignal } from '../../server/signals';
 
-type Tab = 'mercado' | 'paper' | 'backtest' | 'aranha';
+type Tab = 'mercado' | 'paper' | 'backtest' | 'aranha' | 'crawler';
 
 interface PaperView {
   equity: number;
@@ -108,6 +109,7 @@ export default function App() {
   const [history, setHistory] = useState<HistoryView | null>(null);
   const [backtest, setBacktest] = useState<BacktestView | null>(null);
   const [backtestError, setBacktestError] = useState('');
+  const [focusSymbol, setFocusSymbol] = useState<string | null>(null);
 
   useEffect(() => {
     const apply = (payload: { indicators?: TechnicalIndicators; forecast?: number[]; paper?: PaperView; history?: HistoryView; candle?: CanonicalCandle | null }) => {
@@ -186,7 +188,7 @@ export default function App() {
       </header>
 
       <div className="tabs" role="tablist">
-        {([['mercado', 'Mercado'], ['paper', 'Paper'], ['backtest', 'Backtest'], ['aranha', 'Aranha']] as const).map(([id, label]) => (
+        {([['mercado', 'Mercado'], ['paper', 'Paper'], ['backtest', 'Backtest'], ['aranha', 'Aranha'], ['crawler', 'Crawler']] as const).map(([id, label]) => (
           <button key={id} className="tab" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
@@ -194,7 +196,13 @@ export default function App() {
       {tab === 'mercado' && (
         <div className="layout">
           <section className="card">
-            <h2>Sinal atual</h2>
+            <h2>Sinal atual{focusSymbol ? ` · ${focusSymbol}` : ''}</h2>
+            {focusSymbol && (
+              <p className="muted">
+                Você abriu {focusSymbol} no crawler. O paper ao vivo continua no par configurado.
+                <button className="tab" type="button" onClick={() => setFocusSymbol(null)}>Voltar ao par principal</button>
+              </p>
+            )}
             <div className={`signal ${signal?.action === 'BUY' ? 'buy' : signal?.action === 'SELL' ? 'sell' : 'hold'}`}>
               {signalLabel(signal?.action)}
             </div>
@@ -262,7 +270,11 @@ export default function App() {
         </section>
       )}
 
-      {tab === 'aranha' && <AranhaPanel />}
+      {tab === 'aranha' && <AranhaPanel symbol={focusSymbol} />}
+
+      {tab === 'crawler' && (
+        <CrawlerPanel onOpen={symbol => { setFocusSymbol(symbol); setTab('aranha'); }} />
+      )}
 
       {tab === 'backtest' && (
         <section className="card">

@@ -18,6 +18,9 @@ import { describeHistory, createHistoryWindow, preloadHistory, acceptCandle } fr
 import { PaperSession } from './paper-session';
 import { formatResearchAlert, sendTelegramMessage } from './telegram';
 import { AranhaRuntime } from './aranha/runtime';
+import { CrawlerRuntime } from './crawler/runtime';
+import { readCrawlerConfig } from './crawler/config';
+import { toCanonical } from './crawler/score';
 
 loadEnvFile();
 
@@ -34,8 +37,13 @@ const SYMBOL = (process.env.SYMBOL || 'BTCUSDT').toUpperCase();
 const TIMEFRAME = process.env.TIMEFRAME || '5m';
 const config = readResearchConfig();
 const aranha = new AranhaRuntime();
-
 const bridge = new KronosBridge();
+const crawler = new CrawlerRuntime(readCrawlerConfig(), {
+  forecaster: {
+    ready: () => bridge.getStatus() === 'ready',
+    predict: async (symbol, bars) => bridge.forecastIfIdle(toCanonical(symbol, bars))
+  }
+});
 const feed = new MarketFeed(FEED_MODE);
 const MAX_HISTORY = 600;
 let history = createHistoryWindow(MAX_HISTORY);
@@ -295,6 +303,28 @@ app.get('/api/paper', (_req, res) => {
   res.json(snapshotPayload());
 });
 
+app.get('/api/crawler', (_req, res) => {
+  res.json(crawler.snapshot());
+});
+
+app.get('/api/crawler/symbol/:symbol', (req, res) => {
+  const symbol = String(req.params.symbol || '').toUpperCase();
+  if (!/^[A-Z0-9]{5,20}$/.test(symbol)) {
+    res.status(400).json({ error: 'Símbolo inválido.' });
+    return;
+  }
+  res.json(crawler.detail(symbol));
+});
+
+app.get('/api/crawler-backtest', (_req, res) => {
+  const reportPath = process.env.CRAWLER_REPORT_PATH || 'reports/crawler-latest.json';
+  if (!existsSync(reportPath)) {
+    res.status(404).json({ error: 'Ainda não há estudo do crawler. Rode npm run backtest:crawler.' });
+    return;
+  }
+  res.type('json').send(readFileSync(reportPath, 'utf8'));
+});
+
 app.get('/api/aranha', (_req, res) => {
   res.json(aranha.view());
 });
@@ -324,6 +354,7 @@ async function bootstrap() {
   await loadHistoricalData();
   await catchUpHistory();
   aranha.startBackground();
+  crawler.start();
   bridge.start();
   feed.start();
   httpServer.listen(PORT, () => {
@@ -336,6 +367,7 @@ function shutdown() {
   feed.stop();
   bridge.stop();
   aranha.stop();
+  crawler.stop();
   httpServer.close();
 }
 process.on('SIGINT', shutdown);

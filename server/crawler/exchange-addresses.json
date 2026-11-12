@@ -1,0 +1,15 @@
+{
+  "note": "Lista parcial de endereços públicos já marcados como corretora. Está incompleta e pode envelhecer. Um endereço fora da lista não significa que não seja de uma corretora.",
+  "btc": {
+    "34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo": "Binance",
+    "bc1qm34lsc65zpw79lxes69zkqmk6ee3ewf0j77s3h": "Binance",
+    "3M219KR5vEneNb47ewrPfWyb5jQ2DjxRP6": "Binance",
+    "1NDyJtNTjmwk5xPNhjgAMu4HDHigtobu1s": "Binance"
+  },
+  "eth": {
+    "0x28c6c06298d514db089934071355e5743bf21d60": "Binance",
+    "0x21a31ee1afc51d94c2efccaa2092ad1028285549": "Binance",
+    "0xdfd5293d8e347dfe59e90efd55b2956a1343963d": "Binance",
+    "0x56eddb7aa87536c09ccc2793473599fd21a8b17f": "Binance"
+  }
+}

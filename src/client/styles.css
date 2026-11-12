@@ -135,7 +135,7 @@ th { color: #94a3b8; font-weight: 600; }
 .stack { display: flex; flex-direction: column; gap: 12px; }
 .aranha-chart { height: 360px; }
 .spark { display: block; background: #020617; border-radius: 6px; }
-a { color: #93c5fd; }
+a, .linkish { color: #93c5fd; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 
 @media (max-width: 800px) {
   header, .layout { display: block; }
