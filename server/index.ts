@@ -17,6 +17,7 @@ import { readResearchConfig } from './research-config';
 import { describeHistory, createHistoryWindow, preloadHistory, acceptCandle } from './history-window';
 import { PaperSession } from './paper-session';
 import { formatResearchAlert, sendTelegramMessage } from './telegram';
+import { AranhaRuntime } from './aranha/runtime';
 
 loadEnvFile();
 
@@ -32,6 +33,7 @@ const FEED_MODE = (process.env.FEED_MODE || 'binance') as 'replay' | 'binance';
 const SYMBOL = (process.env.SYMBOL || 'BTCUSDT').toUpperCase();
 const TIMEFRAME = process.env.TIMEFRAME || '5m';
 const config = readResearchConfig();
+const aranha = new AranhaRuntime();
 
 const bridge = new KronosBridge();
 const feed = new MarketFeed(FEED_MODE);
@@ -109,6 +111,7 @@ async function loadHistoricalData(): Promise<void> {
   )) {
     throw new Error('Historical dataset provenance, symbol or timeframe does not match the Binance configuration');
   }
+  aranha.setCandles(candles);
   if (FEED_MODE === 'replay') {
     feed.setReplayCandles(candles);
   } else {
@@ -137,6 +140,7 @@ async function catchUpHistory(): Promise<void> {
   });
   for (const candle of filled) {
     history = acceptCandle(history, candle).window;
+    aranha.append(candle);
   }
   latestCandle = history.retained[history.retained.length - 1] ?? null;
   if (history.retained.length) {
@@ -180,6 +184,9 @@ bridge.on('prediction', prediction => {
       rsi14: decision.indicators.rsi14,
       atr14: decision.indicators.atr14
     }, config.signal);
+    aranha.noteSignal(signal);
+    const aranhaView = aranha.view();
+    signal = aranhaView.usedSignal ?? signal;
     session.queueSignal(signal, decisionOpenTime, Date.now());
     decisions.delete(decisionOpenTime);
     if (signal.action !== 'HOLD') {
@@ -193,7 +200,7 @@ bridge.on('prediction', prediction => {
   }
   broadcast({
     type: 'KRONOS_AI_PREDICTION',
-    payload: { ...prediction, predictedCloses: predicted, signal }
+    payload: { ...prediction, predictedCloses: predicted, signal, aranha: aranha.view() }
   });
   broadcast({ type: 'PAPER_STATE', payload: snapshotPayload() });
 });
@@ -245,6 +252,7 @@ async function ingestCandle(candle: CanonicalCandle): Promise<void> {
   const accepted = acceptCandle(history, candle);
   history = accepted.window;
   latestCandle = candle;
+  aranha.append(candle);
   const quality = auditCandleSeries(history.retained);
   if (!quality.valid) {
     broadcast({ type: 'DATA_QUALITY_WARNING', payload: { errors: quality.errors.slice(0, 10) } });
@@ -287,6 +295,21 @@ app.get('/api/paper', (_req, res) => {
   res.json(snapshotPayload());
 });
 
+app.get('/api/aranha', (_req, res) => {
+  res.json(aranha.view());
+});
+
+app.get('/api/aranha-backtest', (_req, res) => {
+  const reportPath = process.env.ARANHA_REPORT_PATH || 'reports/aranha-latest.json';
+  if (!existsSync(reportPath)) {
+    res.status(404).json({
+      error: 'Ainda não há backtest da Aranha. Rode npm run backtest:aranha depois de importar os candles.'
+    });
+    return;
+  }
+  res.type('json').send(readFileSync(reportPath, 'utf8'));
+});
+
 app.get('/api/backtest', (_req, res) => {
   if (!existsSync(config.reportPath)) {
     res.status(404).json({
@@ -300,6 +323,7 @@ app.get('/api/backtest', (_req, res) => {
 async function bootstrap() {
   await loadHistoricalData();
   await catchUpHistory();
+  aranha.startBackground();
   bridge.start();
   feed.start();
   httpServer.listen(PORT, () => {
@@ -311,6 +335,7 @@ async function bootstrap() {
 function shutdown() {
   feed.stop();
   bridge.stop();
+  aranha.stop();
   httpServer.close();
 }
 process.on('SIGINT', shutdown);

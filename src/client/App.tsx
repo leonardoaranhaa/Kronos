@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import PriceChart from './PriceChart';
+import AranhaPanel, { AranhaBrief } from './AranhaPanel';
 import { CanonicalCandle, TechnicalIndicators } from '../../shared/types';
 import type { ResearchSignal } from '../../server/signals';
 
-type Tab = 'mercado' | 'paper' | 'backtest';
+type Tab = 'mercado' | 'paper' | 'backtest' | 'aranha';
 
 interface PaperView {
   equity: number;
@@ -185,7 +186,7 @@ export default function App() {
       </header>
 
       <div className="tabs" role="tablist">
-        {([['mercado', 'Mercado'], ['paper', 'Paper'], ['backtest', 'Backtest']] as const).map(([id, label]) => (
+        {([['mercado', 'Mercado'], ['paper', 'Paper'], ['backtest', 'Backtest'], ['aranha', 'Aranha']] as const).map(([id, label]) => (
           <button key={id} className="tab" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
@@ -198,6 +199,7 @@ export default function App() {
               {signalLabel(signal?.action)}
             </div>
             <p className="reason">{signal?.reason || 'Ainda não há uma previsão para transformar em sinal.'}</p>
+            <AranhaBrief />
             <p className="muted">
               Força heurística: {signal ? pct.format(signal.heuristicScore * 100) : '0,00'}%. Isto não é probabilidade de acerto.
             </p>
@@ -259,6 +261,8 @@ export default function App() {
           </ul>
         </section>
       )}
+
+      {tab === 'aranha' && <AranhaPanel />}
 
       {tab === 'backtest' && (
         <section className="card">
