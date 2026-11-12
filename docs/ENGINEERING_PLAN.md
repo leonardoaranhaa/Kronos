@@ -1,8 +1,10 @@
 # KRONOS — Engineering Plan
 
-**Status:** Offline CI and research build pass on `engineering/p1-data-integrity`; live data and model runtime validation remain pending.  
+**Status:** Offline CI and the research build are the required gate. A later branch adds research signals, a walk-forward backtest and local paper simulation on top of this read-only pipeline.  
 **Working branch:** `engineering/p1-data-integrity` (based on `engineering/foundation-audit`)  
-**Scope:** Read-only market data, model inference, historical research, validation and observability. No order submission or real-money execution.
+**Scope:** Read-only market data, model inference, historical research, validation and observability. Paper fills are simulated. No order submission or real-money execution.
+
+The measured backtest, when present, is `reports/backtest-latest.md`. Those numbers are an observation for one snapshot, one stride and one fixed rule set. They are not a target and they are not a claim about future trading.
 
 ## 1. Source-of-truth integrations
 
