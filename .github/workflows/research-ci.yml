@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - engineering/p1-data-integrity
+      - engineering/foundation-audit
   pull_request:
     branches:
       - engineering/foundation-audit
+      - engineering/p1-data-integrity
 
 permissions:
   contents: read
@@ -32,26 +34,14 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Test candle validation
-        run: npm run test:candles
-
-      - name: Test Binance feed normalization
-        run: npm run test:binance
-
-      - name: Test Binance historical importer helpers
-        run: npm run test:import
-
-      - name: Test deterministic historical replay
-        run: npm run test:replay
-
-      - name: Test service health states
-        run: npm run test:health
+      - name: Run offline tests
+        run: npm test
 
       - name: Build research application
         run: npm run build
 
       - name: Check Python worker syntax
-        run: python -m py_compile server/kronos_worker.py
+        run: python3 -m py_compile server/kronos_worker.py
 
       - name: Check setup script syntax
         run: bash -n scripts/setup-kronos.sh

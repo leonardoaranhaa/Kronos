@@ -1,0 +1,139 @@
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  line-height: 1.45;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #0f172a;
+}
+
+button, input { font: inherit; }
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.banner {
+  background: #422006;
+  color: #fde68a;
+  border: 1px solid #92400e;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+h1 {
+  font-size: 1.6rem;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+h2 { font-size: 1.05rem; margin: 0 0 8px; }
+
+.muted { color: #94a3b8; margin: 4px 0 0; }
+
+.pills, .tabs, .metrics, .split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pill, .tab, .card, .metric {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+}
+
+.pill { padding: 6px 10px; color: #cbd5e1; }
+
+.ok { color: #86efac; }
+.warn { color: #fcd34d; }
+.bad { color: #fda4af; }
+
+.tabs { margin: 8px 0 16px; }
+
+.tab {
+  color: #e2e8f0;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 12px;
+}
+
+.card { padding: 16px; }
+
+.signal {
+  font-size: 2rem;
+  font-weight: 750;
+  margin: 8px 0;
+}
+
+.buy { color: #4ade80; }
+.sell { color: #fb7185; }
+.hold { color: #fbbf24; }
+
+.reason { color: #cbd5e1; min-height: 3.2em; }
+
+.chart {
+  width: 100%;
+  height: 320px;
+  display: block;
+  background: #020617;
+  border-radius: 12px;
+}
+
+.legend { display: flex; gap: 16px; color: #94a3b8; margin-top: 8px; }
+.swatch { display: inline-block; width: 18px; height: 3px; margin-right: 6px; vertical-align: middle; }
+.price { background: #38bdf8; }
+.forecast { background: #a78bfa; }
+
+.metrics { margin-top: 12px; }
+.metric { padding: 10px 12px; min-width: 120px; }
+.metric span { display: block; color: #94a3b8; font-size: 0.85rem; }
+.metric strong { font-size: 1.15rem; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #1f2937; }
+th { color: #94a3b8; font-weight: 600; }
+
+.events { list-style: none; padding: 0; margin: 0; }
+.events li { padding: 8px 0; border-bottom: 1px solid #1f2937; }
+
+.callout {
+  background: #172033;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 12px 0;
+}
+
+@media (max-width: 800px) {
+  header, .layout { display: block; }
+  .card + .card { margin-top: 12px; }
+  .chart { height: 240px; }
+}
