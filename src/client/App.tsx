@@ -3,7 +3,7 @@ import PriceChart from './PriceChart';
 import { CanonicalCandle, TechnicalIndicators } from '../../shared/types';
 import type { ResearchSignal } from '../../server/signals';
 
-type Tab = 'mercado' | 'paper' | 'backtest';
+type Tab = 'mercado' | 'paper' | 'backtest' | 'pesquisa';
 
 interface PaperView {
   equity: number;
@@ -107,6 +107,16 @@ export default function App() {
   const [history, setHistory] = useState<HistoryView | null>(null);
   const [backtest, setBacktest] = useState<BacktestView | null>(null);
   const [backtestError, setBacktestError] = useState('');
+  const [research, setResearch] = useState<{
+    summaryPt?: string;
+    promoteToPaper?: boolean;
+    promotionReasons?: string[];
+    tuning?: { tried: number; eligible: number };
+    multipleTesting?: { outOfSampleDirectionTests: number; bonferroniAlpha: number };
+    directional?: { symbol: string; interval: string; split: string; accuracy: number | null; hits: number; compared: number; pValue: number | null; mae: number | null }[];
+    rows?: { symbol: string; interval: string; split: string; strategy: string; returnPct: number; maxDrawdownPct: number; winRatePct: number | null; closedTrades: number; sharpe: number | null }[];
+  } | null>(null);
+  const [researchError, setResearchError] = useState('');
 
   useEffect(() => {
     const apply = (payload: { indicators?: TechnicalIndicators; forecast?: number[]; paper?: PaperView; history?: HistoryView; candle?: CanonicalCandle | null }) => {
@@ -130,6 +140,12 @@ export default function App() {
       setCloses(candles.map(candle => candle.close));
       if (candles.length) setPrice(candles[candles.length - 1].close);
     }).catch(() => undefined);
+
+    fetch('/api/research').then(async response => {
+      const body = await response.json();
+      if (!response.ok) setResearchError(body.error || 'Pesquisa indisponível.');
+      else setResearch(body);
+    }).catch(() => setResearchError('Não foi possível ler o relatório de pesquisa.'));
 
     fetch('/api/backtest').then(async response => {
       const body = await response.json();
@@ -185,7 +201,7 @@ export default function App() {
       </header>
 
       <div className="tabs" role="tablist">
-        {([['mercado', 'Mercado'], ['paper', 'Paper'], ['backtest', 'Backtest']] as const).map(([id, label]) => (
+        {([['mercado', 'Mercado'], ['paper', 'Paper'], ['backtest', 'Backtest'], ['pesquisa', 'Pesquisa']] as const).map(([id, label]) => (
           <button key={id} className="tab" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
@@ -297,6 +313,65 @@ export default function App() {
               </table>
               <div className="callout">
                 {(backtest.limitations || []).map(line => <p key={line}>{line}</p>)}
+              </div>
+            </>
+          )}
+        </section>
+      )}
+
+      {tab === 'pesquisa' && (
+        <section className="card">
+          <h2>Pesquisa de vantagem</h2>
+          {researchError && <p>{researchError}</p>}
+          {research && (
+            <>
+              <p>{research.summaryPt}</p>
+              <p className="muted">
+                Combinações testadas na amostra: {research.tuning?.tried ?? '—'}.
+                Testes de direção fora da amostra: {research.multipleTesting?.outOfSampleDirectionTests ?? '—'}.
+                Estratégia opcional: {research.promoteToPaper ? 'disponível em BTCUSDT 1h' : 'não habilitada'}.
+              </p>
+              <h2>Direção fora da amostra</h2>
+              <table>
+                <thead>
+                  <tr><th>Par</th><th>Intervalo</th><th>Acurácia</th><th>p-valor</th><th>MAE</th></tr>
+                </thead>
+                <tbody>
+                  {(research.directional || []).filter(row => row.split === 'out_of_sample').map(row => (
+                    <tr key={`${row.symbol}-${row.interval}-dir`}>
+                      <td>{row.symbol}</td>
+                      <td>{row.interval}</td>
+                      <td>{row.accuracy === null ? '—' : `${pct.format(row.accuracy * 100)}%`}</td>
+                      <td>{row.pValue === null ? '—' : row.pValue.toFixed(3)}</td>
+                      <td>{row.mae === null ? '—' : money.format(row.mae)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <h2>Operação fora da amostra</h2>
+              <table>
+                <thead>
+                  <tr><th>Par</th><th>Intervalo</th><th>Estratégia</th><th>Retorno</th><th>Drawdown</th><th>Trades</th><th>Sharpe</th></tr>
+                </thead>
+                <tbody>
+                  {(research.rows || []).filter(row => row.split === 'out_of_sample').slice().sort((a, b) => {
+                    const order = ['regra-atual', 'regra-atual-so-compra', 'escolhida-na-amostra', 'comprar-e-segurar', 'ultimo-candle', 'aleatorio'];
+                    return a.symbol.localeCompare(b.symbol) || a.interval.localeCompare(b.interval) || order.indexOf(a.strategy) - order.indexOf(b.strategy);
+                  }).map(row => (
+                    <tr key={`${row.symbol}-${row.interval}-${row.strategy}`}>
+                      <td>{row.symbol}</td>
+                      <td>{row.interval}</td>
+                      <td>{row.strategy}</td>
+                      <td>{pct.format(row.returnPct)}%</td>
+                      <td>{pct.format(row.maxDrawdownPct)}%</td>
+                      <td>{row.closedTrades}</td>
+                      <td>{row.sharpe === null ? '—' : pct.format(row.sharpe)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="callout">
+                {(research.promotionReasons || []).map(line => <p key={line}>{line}</p>)}
               </div>
             </>
           )}

@@ -13,6 +13,10 @@ import { backfillGap } from './gap-backfill';
 import { getHealthSnapshot } from './health';
 import { computeIndicators } from './indicators';
 import { decideSignal, ResearchSignal } from './signals';
+import { researchAction } from './research-eval';
+import { loadPromotion, selectPaperStrategy } from './paper-strategy';
+import { SAMPLE_COUNT } from './research-protocol';
+import { sampleStd } from './research-stats';
 import { readResearchConfig } from './research-config';
 import { describeHistory, createHistoryWindow, preloadHistory, acceptCandle } from './history-window';
 import { PaperSession } from './paper-session';
@@ -32,8 +36,16 @@ const FEED_MODE = (process.env.FEED_MODE || 'binance') as 'replay' | 'binance';
 const SYMBOL = (process.env.SYMBOL || 'BTCUSDT').toUpperCase();
 const TIMEFRAME = process.env.TIMEFRAME || '5m';
 const config = readResearchConfig();
+const paperChoice = selectPaperStrategy(
+  process.env.PAPER_STRATEGY,
+  loadPromotion('reports/research-m2.json'),
+  { symbol: SYMBOL, interval: TIMEFRAME }
+);
+console.log(`[Paper] ${paperChoice.reason}`);
 
-const bridge = new KronosBridge();
+const bridge = new KronosBridge(paperChoice.id === 'pesquisa'
+  ? { sampleCount: SAMPLE_COUNT, horizon: 6, maxContext: 256 }
+  : {});
 const feed = new MarketFeed(FEED_MODE);
 const MAX_HISTORY = 600;
 let history = createHistoryWindow(MAX_HISTORY);
@@ -172,14 +184,36 @@ bridge.on('prediction', prediction => {
   const decision = decisions.get(decisionOpenTime);
   let signal: ResearchSignal | null = null;
   if (decision) {
-    signal = decideSignal({
-      close: decision.close,
-      predictedCloses: predicted,
-      ema9: decision.indicators.ema9,
-      ema20: decision.indicators.ema20,
-      rsi14: decision.indicators.rsi14,
-      atr14: decision.indicators.atr14
-    }, config.signal);
+    if (paperChoice.id === 'pesquisa') {
+      const sampleEnds = Array.isArray(prediction.sampleEnds) ? prediction.sampleEnds as number[] : [];
+      const meanEnd = predicted[predicted.length - 1];
+      const predictedReturnBps = ((meanEnd - decision.close) / decision.close) * 10_000;
+      const dispersionBps = sampleStd(sampleEnds.map(value => ((value - decision.close) / decision.close) * 10_000));
+      const action = researchAction({
+        close: decision.close,
+        predictedReturnBps,
+        dispersionBps,
+        atr: decision.indicators.atr14,
+        ema9: decision.indicators.ema9,
+        ema20: decision.indicators.ema20
+      }, paperChoice.params);
+      signal = {
+        action,
+        reason: `Estratégia pesquisa: ${action === 'BUY' ? 'compra' : action === 'SELL' ? 'venda' : 'manter'}. Movimento previsto ${predictedReturnBps.toFixed(1)} bps, dispersão ${dispersionBps.toFixed(1)} bps.`,
+        forecastReturnBps: predictedReturnBps,
+        heuristicScore: 0,
+        indicators: decision.indicators
+      };
+    } else {
+      signal = decideSignal({
+        close: decision.close,
+        predictedCloses: predicted,
+        ema9: decision.indicators.ema9,
+        ema20: decision.indicators.ema20,
+        rsi14: decision.indicators.rsi14,
+        atr14: decision.indicators.atr14
+      }, config.signal);
+    }
     session.queueSignal(signal, decisionOpenTime, Date.now());
     decisions.delete(decisionOpenTime);
     if (signal.action !== 'HOLD') {
@@ -285,6 +319,15 @@ app.get('/api/history', (_req, res) => {
 
 app.get('/api/paper', (_req, res) => {
   res.json(snapshotPayload());
+});
+
+app.get('/api/research', (_req, res) => {
+  const path = 'reports/research-m2.json';
+  if (!existsSync(path)) {
+    res.status(404).json({ error: 'Ainda não há pesquisa. Rode npm run research depois de importar os candles.' });
+    return;
+  }
+  res.type('json').send(readFileSync(path, 'utf8'));
 });
 
 app.get('/api/backtest', (_req, res) => {
