@@ -75,6 +75,56 @@ class TimeSeriesLabTests(unittest.TestCase):
         self.assertIsNone(summary["max_absolute_delta"])
         self.assertEqual(summary["total_absolute_variation"], 0.0)
 
+    def test_missing_sample_is_reported_as_an_excessive_gap(self):
+        path = self.write_csv(
+            "timestamp,value\\n"
+            "2026-01-01T00:00:00Z,10\\n"
+            "2026-01-01T02:00:00Z,11\\n"
+        )
+        points, _ = load_points(path)
+        events = replay(points, expected_interval_seconds=3600)
+        summary = summarize_quality(events)
+        self.assertEqual(events[1]["gap_seconds"], 7200.0)
+        self.assertEqual(events[1]["gap_status"], "exceeds_expected")
+        self.assertEqual(summary["out_of_range_intervals"], 1)
+
+    def test_large_finite_measurements_remain_finite_in_quality_summary(self):
+        path = self.write_csv(
+            "timestamp,value\\n"
+            "2026-01-01T00:00:00Z,1e200\\n"
+            "2026-01-01T01:00:00Z,1e200\\n"
+        )
+        points, _ = load_points(path)
+        summary = summarize_quality(replay(points))
+        self.assertEqual(summary["min_value"], 1e200)
+        self.assertEqual(summary["max_value"], 1e200)
+        self.assertEqual(summary["mean_value"], 1e200)
+        self.assertEqual(summary["max_absolute_delta"], 0.0)
+
+    def test_quality_summary_handles_negative_and_zero_measurements(self):
+        path = self.write_csv(
+            "timestamp,value\\n"
+            "2026-01-01T00:00:00Z,-5\\n"
+            "2026-01-01T01:00:00Z,0\\n"
+            "2026-01-01T02:00:00Z,5\\n"
+        )
+        points, _ = load_points(path)
+        summary = summarize_quality(replay(points))
+        self.assertEqual(summary["min_value"], -5.0)
+        self.assertEqual(summary["max_value"], 5.0)
+        self.assertEqual(summary["mean_value"], 0.0)
+        self.assertEqual(summary["total_absolute_variation"], 10.0)
+
+    def test_gap_policy_rejects_non_finite_or_invalid_thresholds(self):
+        for interval in (0.0, -1.0, float("nan"), float("inf")):
+            with self.subTest(interval=interval):
+                with self.assertRaisesRegex(ValueError, "expected interval"):
+                    validate_gap_policy(interval, 0.0)
+        for tolerance in (-1.0, float("nan"), float("inf")):
+            with self.subTest(tolerance=tolerance):
+                with self.assertRaisesRegex(ValueError, "gap tolerance"):
+                    validate_gap_policy(60.0, tolerance)
+
     def test_rejects_duplicate_or_out_of_order_timestamps(self):
         path = self.write_csv(
             "timestamp,value\n"
