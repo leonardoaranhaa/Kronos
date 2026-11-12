@@ -18,6 +18,8 @@ import {
 } from './whales';
 import { parseTickerPayload, selectUniverse } from './universe';
 import { scoreCoin, toCanonical } from './score';
+import { appendJournalLines } from './journal';
+import { rankingLines, wallLine } from './journal-records';
 import { buildCoinView, type CoinView, type LiveFeedItem, type PaperMark } from './live';
 import type { BookWall, CoinScore, CrawlerRow, CrawlerSnapshot, MarketBar, OnchainEvent, WhalePrint } from './types';
 
@@ -276,6 +278,22 @@ export class CrawlerRuntime {
     }
   }
 
+  /** Writes this cycle's ranking and book walls. Safe to call from tests. */
+  writeCycleLog(now = new Date()): void {
+    const ordered = this.rows.flatMap(row => {
+      const score = this.lastScores.get(row.symbol);
+      return score ? [score] : [];
+    });
+    if (ordered.length === 0) return;
+    const t = now.toISOString();
+    try {
+      appendJournalLines(this.config.snapshotDir, 'rankings', rankingLines(t, ordered, this.onchain), now);
+      appendJournalLines(this.config.snapshotDir, 'walls', wallLine(t, this.walls), now);
+    } catch {
+      // A full disk must not stop the live screen.
+    }
+  }
+
   private async cycle(): Promise<void> {
     if (this.refreshing) return;
     this.refreshing = true;
@@ -284,6 +302,7 @@ export class CrawlerRuntime {
       await this.refreshRanks();
       await this.loadOnchain();
       this.openSocket();
+      this.writeCycleLog();
       this.touch();
     } catch (error) {
       this.errors.unshift(error instanceof Error ? error.message : String(error));
