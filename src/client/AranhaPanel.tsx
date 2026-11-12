@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AranhaContext, NewsItem, PatternHit } from '../../server/aranha/types';
 import AranhaChart from './AranhaChart';
+import { llmClass, llmClock, llmLabel } from './llm-label';
 
 interface StrategyRow {
   label: string;
@@ -44,12 +45,6 @@ function when(value: number | string | null): string {
   const time = typeof value === 'number' ? value : Date.parse(value);
   if (Number.isNaN(time)) return '—';
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(time);
-}
-
-function llmLabel(context: AranhaContext): string {
-  if (context.web.llm === 'anthropic' || context.pattern.chartReading.llmMode === 'anthropic') return 'Claude ligado';
-  if (context.web.llm === 'openai' || context.pattern.chartReading.llmMode === 'openai') return 'modelo OpenAI ligado';
-  return 'LLM desligado';
 }
 
 function Spark({ past, future }: { past: number[]; future: number[] }) {
@@ -105,7 +100,7 @@ export function AranhaBrief() {
   if (!data) return <p className="muted">Aranha: lendo o gráfico…</p>;
   const summary = data.pattern.analogSummary;
   const hit = summary.count === 0 ? 'ainda sem trechos parecidos' : `alta em ${summary.hitRateUp === null ? '—' : `${Math.round(summary.hitRateUp * 100)}%`} dos ${summary.count} trechos`;
-  return <p className="muted">Aranha: viés {data.verdict.bias}. {hit}. {llmLabel(data)}.</p>;
+  return <p className="muted">Aranha: viés {data.verdict.bias}. {hit}. {llmLabel(data.llm)}.</p>;
 }
 
 function NewsRow({ item }: { item: NewsItem }) {
@@ -164,24 +159,31 @@ export default function AranhaPanel() {
   const strategies = backtest?.strategies
     ? ['analogs', 'structures', 'persistenceFiltered', 'persistence', 'buyAndHold', 'random'].map(key => backtest.strategies?.[key]).filter(Boolean)
     : [];
-  const on = llmLabel(data) !== 'LLM desligado';
+  const modelText = llmLabel(data.llm);
 
   return (
     <div className="stack">
       <section className="card">
         <div className="pills">
           <span className="pill">Veredito <strong className={data.verdict.bias === 'alta' ? 'ok' : data.verdict.bias === 'baixa' ? 'bad' : 'warn'}>{data.verdict.bias}</strong></span>
-          <span className="pill">Modelo <strong className={on ? 'ok' : 'warn'}>{llmLabel(data)}</strong></span>
+          <span className="pill">Modelo <strong className={llmClass(data.llm)}>{modelText}</strong></span>
           <span className="pill">Filtro <strong>{data.filterEnabled ? 'ligado' : 'desligado'}</strong></span>
         </div>
         <p>{data.verdict.note}</p>
         <p className="muted">{pattern.chartReading.text}</p>
+        {data.llm.mode === 'erro' && <p className="bad">{data.llm.reason ?? 'O modelo falhou'}. A leitura mecânica continua valendo.</p>}
         {pattern.chartReading.llmText && (
           <div className="callout">
-            <h2>Leitura do modelo</h2>
+            <h2>Leitura do modelo{data.llm.readingAt ? ` · ${llmClock(data.llm.readingAt)}` : ''}</h2>
             <p>{pattern.chartReading.llmText}</p>
             <p className="muted">Comentário do modelo. Os números acima são da conta mecânica.</p>
           </div>
+        )}
+        {data.llm.usage && (
+          <p className="muted">
+            Última chamada com sucesso: {data.llm.usage.inputTokens ?? '—'} tokens de entrada, {data.llm.usage.outputTokens ?? '—'} de saída
+            {data.llm.usage.webSearchRequests ? `, ${data.llm.usage.webSearchRequests} buscas` : ''}.
+          </p>
         )}
       </section>
 

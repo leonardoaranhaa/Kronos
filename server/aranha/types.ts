@@ -1,8 +1,25 @@
 import type { ResearchSignal } from '../signals';
+import type { LlmFailureKind, LlmUsage } from './llm';
+
+export type { LlmUsage };
 
 export type Bias = 'alta' | 'baixa' | 'neutro';
 export type Timeframe = '5m' | '1h' | '4h';
-export type LlmMode = 'desligado' | 'anthropic' | 'openai';
+export type LlmMode = 'desligado' | 'anthropic' | 'openai' | 'erro';
+
+/** Account state for the optional model. Independent of the current candle. */
+export interface LlmAccountStatus {
+  configured: boolean;
+  provider: 'anthropic' | 'openai' | null;
+  model: string | null;
+  mode: LlmMode;
+  reason: string | null;
+  lastCallAt: string | null;
+  lastCallOk: boolean | null;
+  /** Timestamp of the reading still on screen, which may be older than the last call. */
+  readingAt: string | null;
+  usage: LlmUsage | null;
+}
 
 export interface AnalogMatch {
   endIndex: number;
@@ -126,6 +143,10 @@ export interface WebContext {
   asOf: string;
   llm: LlmMode;
   llmModel: string | null;
+  /** Short pt-BR reason when `llm` is `erro`. */
+  llmReason: string | null;
+  llmFailure: LlmFailureKind | null;
+  usage: LlmUsage | null;
   webSearch: 'usado' | 'indisponível' | 'desligado';
   sentiment: number | null;
   fearGreed: FearGreedReading | null;
@@ -150,6 +171,7 @@ export interface AranhaContext {
   web: WebContext;
   verdict: AranhaVerdict;
   filterEnabled: boolean;
+  llm: LlmAccountStatus;
   signal: ResearchSignal | null;
   /** Signal after the optional filter. Equals `signal` when the filter is off. */
   usedSignal: ResearchSignal | null;

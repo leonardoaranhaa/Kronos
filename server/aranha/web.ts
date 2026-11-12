@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LlmProvider } from './llm';
+import { llmFailureReason, LlmRequestError, type LlmFailureKind, type LlmProvider, type LlmUsage } from './llm';
 import { scoreText } from './lexicon';
 import {
   fearGreedLabel,
@@ -115,6 +115,9 @@ export function emptyWebContext(note: string, asOf = new Date(0).toISOString()):
     asOf,
     llm: 'desligado',
     llmModel: null,
+    llmReason: null,
+    llmFailure: null,
+    usage: null,
     webSearch: 'desligado',
     sentiment: null,
     fearGreed: null,
@@ -281,6 +284,8 @@ export async function buildWebContext(options: {
   fetchImpl?: typeof fetch;
   cache: SourceCache;
   provider: LlmProvider | null;
+  /** When set, do not call the model again. The lexicon still runs. */
+  llmHold?: { reason: string; kind: LlmFailureKind } | null;
 }): Promise<WebContext> {
   const now = options.now ?? Date.now();
   const fetchedAt = new Date(now).toISOString();
@@ -341,11 +346,18 @@ export async function buildWebContext(options: {
   let scored = lexiconItems(items, options.symbol, fetchedAt);
   let llm: WebContext['llm'] = 'desligado';
   let llmModel: string | null = null;
+  let llmReason: string | null = null;
+  let usage: LlmUsage | null = null;
+  let llmFailure: LlmFailureKind | null = null;
   let webSearch: WebContext['webSearch'] = 'desligado';
   const citations: WebCitation[] = [];
   let searchNote = '';
 
-  if (options.provider && items.length > 0) {
+  if (options.llmHold) {
+    llm = 'erro';
+    llmReason = options.llmHold.reason;
+    llmFailure = options.llmHold.kind;
+  } else if (options.provider && items.length > 0) {
     try {
       const prompt = newsScorePrompt(items, options.symbol, fear?.value ?? null);
       const result = await options.provider.complete({
@@ -362,6 +374,7 @@ export async function buildWebContext(options: {
         scored = merged;
         llm = result.provider;
         llmModel = result.model;
+        usage = result.usage ?? null;
         webSearch = result.webSearch;
         for (const citation of result.citations) {
           if (citations.some(item => item.url === citation.url)) continue;
@@ -371,19 +384,28 @@ export async function buildWebContext(options: {
         if (busca) searchNote = ` Busca do modelo: ${busca.slice(0, 400)}`;
       }
     } catch (error) {
-      errors.push(`Modelo indisponível (${error instanceof Error ? error.message : String(error)}). Lista de palavras no lugar.`);
+      const kind = error instanceof LlmRequestError ? error.kind : 'other';
+      llm = 'erro';
+      llmFailure = kind;
+      llmReason = error instanceof LlmRequestError ? llmFailureReason(error.kind) : 'O modelo recusou o pedido';
+      errors.push(`${llmReason}. Lista de palavras no lugar.`);
     }
   }
 
   const sentiment = aggregateSentiment(scored);
-  const note = llm === 'desligado'
-    ? `LLM desligado. O tom das notícias, quando há palavras reconhecidas, vem de uma lista fixa. Isso não é uma previsão.${searchNote}`
-    : `Tom resumido por ${llm === 'anthropic' ? 'Claude' : 'um modelo compatível com OpenAI'}${llmModel ? ` (${llmModel})` : ''}. Os análogos e os padrões do gráfico não vêm daqui.${searchNote}`;
+  const note = llm === 'erro'
+    ? `${llmReason ?? 'O modelo falhou'}. O tom das notícias, quando há palavras reconhecidas, veio da lista fixa. Isso não é uma previsão.${searchNote}`
+    : llm === 'desligado'
+      ? `LLM desligado. O tom das notícias, quando há palavras reconhecidas, vem de uma lista fixa. Isso não é uma previsão.${searchNote}`
+      : `Tom resumido por ${llm === 'anthropic' ? 'Claude' : 'um modelo compatível com OpenAI'}${llmModel ? ` (${llmModel})` : ''}. Os análogos e os padrões do gráfico não vêm daqui.${searchNote}`;
 
   return {
     asOf: fetchedAt,
     llm,
     llmModel,
+    llmReason,
+    usage,
+    llmFailure,
     webSearch,
     sentiment,
     fearGreed: fear,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { AnthropicProvider, createLlmProvider, OpenAiProvider, parseAnthropicMessage } from '../server/aranha/llm';
+import { AnthropicProvider, createLlmProvider, LlmRequestError, OpenAiProvider, parseAnthropicMessage } from '../server/aranha/llm';
 import { scoreText } from '../server/aranha/lexicon';
 import { fearGreedLabel, parseBinanceAnnouncements, parseCoinGeckoTrending, parseFearGreed, parseRss } from '../server/aranha/parse-feed';
 import { buildWebContext, MemorySourceCache, type SourceSpec } from '../server/aranha/web';
@@ -113,7 +113,8 @@ test('a pluggable provider can score items and keep citations, and a failure fal
           busca: 'Nada urgente.'
         }),
         citations: [{ url: 'https://example.com/fonte', title: 'Fonte', citedText: 'trecho citado' }],
-        webSearch: 'usado'
+        webSearch: 'usado',
+        usage: { inputTokens: 20, outputTokens: 8, webSearchRequests: 1 }
       };
     }
   };
@@ -146,15 +147,16 @@ test('a pluggable provider can score items and keep citations, and a failure fal
     cache: new MemorySourceCache(),
     provider: failing
   });
-  assert.equal(fallback.llm, 'desligado');
+  assert.equal(fallback.llm, 'erro');
+  assert.equal(fallback.llmReason, 'O modelo recusou o pedido');
   assert.equal(fallback.items[0].method, 'lexico');
-  assert.match(fallback.errors.join(' '), /sem rede/);
+  assert.match(fallback.note, /lista fixa/);
 });
 
 test('anthropic messages keep citations and fall back to the older search tool', async () => {
   const fixture = {
     stop_reason: 'end_turn',
-    usage: { server_tool_use: { web_search_requests: 1 } },
+    usage: { input_tokens: 12, output_tokens: 3, server_tool_use: { web_search_requests: 1 } },
     content: [
       { type: 'server_tool_use', name: 'web_search', input: { query: 'bitcoin' } },
       { type: 'web_search_tool_result', content: [{ type: 'web_search_result', url: 'https://example.com/a', title: 'A' }] },
@@ -177,7 +179,12 @@ test('anthropic messages keep citations and fall back to the older search tool',
     const headers = new Headers(init?.headers);
     assert.equal(headers.get('x-api-key'), 'test-key');
     assert.equal(headers.get('anthropic-version'), '2026-10-21');
-    if (tool === 'web_search_20260209') return new Response('unsupported', { status: 400 });
+    if (tool === 'web_search_20260209') {
+      return new Response(JSON.stringify({
+        type: 'error',
+        error: { type: 'invalid_request_error', message: "tools.0.type: Input tag 'web_search_20260209' found using 'type' does not match any of the expected tags" }
+      }), { status: 400 });
+    }
     return new Response(JSON.stringify(fixture), { status: 200 });
   };
   const provider = new AnthropicProvider('test-key', 'claude-sonnet-4-6', 'https://api.anthropic.com', '2026-10-21', 'auto', fetchImpl);
@@ -185,6 +192,58 @@ test('anthropic messages keep citations and fall back to the older search tool',
   assert.deepEqual(seen, ['web_search_20260209', 'web_search_20250305']);
   assert.equal(result.webSearch, 'usado');
   assert.equal(result.citations[0].url, 'https://example.com/a');
+  assert.equal(result.usage.inputTokens, 12);
+  assert.equal(result.usage.outputTokens, 3);
+  assert.equal(result.usage.webSearchRequests, 1);
+});
+
+test('a billing or auth 400 stops instead of trying the other search tools', async () => {
+  const billing = JSON.stringify({
+    type: 'error',
+    error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.' }
+  });
+  let calls = 0;
+  const fetchImpl: typeof fetch = async () => {
+    calls += 1;
+    return new Response(billing, { status: 400 });
+  };
+  const provider = new AnthropicProvider('test-key', 'claude-sonnet-4-6', 'https://api.anthropic.com', '2026-10-21', 'auto', fetchImpl);
+  await assert.rejects(
+    () => provider.complete({ system: 'sys', user: 'user', webSearch: true }),
+    (error: unknown) => {
+      assert.ok(error instanceof LlmRequestError);
+      assert.equal(error.kind, 'billing');
+      assert.equal(error.status, 400);
+      return true;
+    }
+  );
+  assert.equal(calls, 1);
+
+  calls = 0;
+  const authFetch: typeof fetch = async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ error: { message: 'invalid x-api-key' } }), { status: 401 });
+  };
+  const authed = new AnthropicProvider('test-key', 'claude-sonnet-4-6', 'https://api.anthropic.com', '2026-10-21', 'auto', authFetch);
+  await assert.rejects(() => authed.complete({ system: 'sys', user: 'user', webSearch: true }), (error: unknown) => {
+    assert.ok(error instanceof LlmRequestError);
+    assert.equal(error.kind, 'auth');
+    return true;
+  });
+  assert.equal(calls, 1);
+
+  calls = 0;
+  const limited: typeof fetch = async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ error: { message: 'rate limit exceeded' } }), { status: 429 });
+  };
+  const paced = new AnthropicProvider('test-key', 'claude-sonnet-4-6', 'https://api.anthropic.com', '2026-10-21', 'auto', limited);
+  await assert.rejects(() => paced.complete({ system: 'sys', user: 'user', webSearch: true }), (error: unknown) => {
+    assert.ok(error instanceof LlmRequestError);
+    assert.equal(error.kind, 'rate');
+    return true;
+  });
+  assert.equal(calls, 1);
 });
 
 test('openai provider falls back when the responses endpoint is missing', async () => {

@@ -14,12 +14,35 @@ export interface LlmRequest {
   maxTokens?: number;
 }
 
+export interface LlmUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  webSearchRequests: number | null;
+}
+
+export type LlmFailureKind = 'billing' | 'auth' | 'rate' | 'tool' | 'other';
+
+/** Billing and auth will not fix themselves on the normal 10-minute poll. */
+export const LLM_ACCOUNT_BACKOFF_MS = 6 * 60 * 60 * 1000;
+
+export class LlmRequestError extends Error {
+  constructor(
+    message: string,
+    readonly kind: LlmFailureKind,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = 'LlmRequestError';
+  }
+}
+
 export interface LlmResult {
   provider: 'anthropic' | 'openai';
   model: string;
   text: string;
   citations: LlmCitation[];
   webSearch: WebSearchState;
+  usage: LlmUsage;
 }
 
 export interface LlmProvider {
@@ -38,6 +61,65 @@ interface ContentBlock {
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? value as Record<string, unknown> : null;
+}
+
+function finite(value: unknown): number | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function emptyUsage(): LlmUsage {
+  return { inputTokens: null, outputTokens: null, webSearchRequests: null };
+}
+
+export function parseAnthropicUsage(payload: unknown): LlmUsage {
+  const usage = asRecord(asRecord(payload)?.usage);
+  const server = asRecord(usage?.server_tool_use);
+  return {
+    inputTokens: finite(usage?.input_tokens),
+    outputTokens: finite(usage?.output_tokens),
+    webSearchRequests: finite(server?.web_search_requests)
+  };
+}
+
+export function parseOpenAiUsage(payload: unknown): LlmUsage {
+  const usage = asRecord(asRecord(payload)?.usage);
+  return {
+    inputTokens: finite(usage?.prompt_tokens ?? usage?.input_tokens),
+    outputTokens: finite(usage?.completion_tokens ?? usage?.output_tokens),
+    webSearchRequests: finite(usage?.web_search_requests)
+  };
+}
+
+const BILLING_TEXT = /credit|billing|balance too low|purchase credits|plans & billing/;
+const AUTH_TEXT = /authentication|unauthorized|api[- ]?key|permission|forbidden/;
+const RATE_TEXT = /rate limit|too many requests|overloaded/;
+const TOOL_TEXT = /unsupported tool|unknown tool|invalid tool|tool type|tools\.\d|web_search_20\d+|does not support (the )?web search/;
+
+/** True only when a 400 is about the search-tool version, not the account. */
+export function isUnsupportedToolError(status: number, body: string): boolean {
+  if (status !== 400) return false;
+  const text = body.toLowerCase();
+  if (BILLING_TEXT.test(text) || AUTH_TEXT.test(text) || RATE_TEXT.test(text)) return false;
+  return TOOL_TEXT.test(text) || (/\btool\b/.test(text) && /unsupported|unknown|invalid|unrecognized/.test(text));
+}
+
+export function classifyLlmFailure(status: number | null, body: string): LlmFailureKind {
+  const text = body.toLowerCase();
+  if (status === 401 || status === 403 || AUTH_TEXT.test(text)) return 'auth';
+  if (status === 429 || RATE_TEXT.test(text)) return 'rate';
+  if (status === 402 || BILLING_TEXT.test(text)) return 'billing';
+  if (status !== null && isUnsupportedToolError(status, body)) return 'tool';
+  return 'other';
+}
+
+export function llmFailureReason(kind: LlmFailureKind): string {
+  if (kind === 'billing') return 'Sem crédito na conta da Anthropic';
+  if (kind === 'auth') return 'A chave do modelo foi recusada';
+  if (kind === 'rate') return 'O modelo pediu uma pausa (limite de chamadas)';
+  if (kind === 'tool') return 'A busca do modelo não está disponível nesta conta';
+  return 'O modelo recusou o pedido';
 }
 
 function addCitation(list: LlmCitation[], url: unknown, title: unknown, citedText: unknown): void {
@@ -129,9 +211,8 @@ function sanitize(text: string, secret: string): string {
   return hidden.replace(/\s+/g, ' ').slice(0, 280);
 }
 
-async function readError(response: Response, secret: string): Promise<string> {
-  const body = await response.text().catch(() => '');
-  return `HTTP ${response.status} ${sanitize(body, secret)}`;
+async function readBody(response: Response): Promise<string> {
+  return response.text().catch(() => '');
 }
 
 export class AnthropicProvider implements LlmProvider {
@@ -153,10 +234,15 @@ export class AnthropicProvider implements LlmProvider {
       const tool = tools[index];
       const response = await this.send(request, tool, null);
       if (!response.ok) {
-        lastError = await readError(response, this.apiKey);
-        const tryNext = response.status === 400 && tool !== null && index < tools.length - 1;
-        if (tryNext) continue;
-        throw new Error(`Anthropic recusou o pedido: ${lastError}`);
+        const body = await readBody(response);
+        const kind = classifyLlmFailure(response.status, body);
+        const summary = `HTTP ${response.status} ${sanitize(body, this.apiKey)}`;
+        const tryNext = kind === 'tool' && tool !== null && index < tools.length - 1;
+        if (tryNext) {
+          lastError = summary;
+          continue;
+        }
+        throw new LlmRequestError(`Anthropic recusou o pedido: ${summary}`, kind, response.status);
       }
       let payload = await response.json() as { stop_reason?: string; content?: unknown };
       if (payload.stop_reason === 'pause_turn' && Array.isArray(payload.content)) {
@@ -170,10 +256,11 @@ export class AnthropicProvider implements LlmProvider {
         model: this.model,
         text: parsed.text,
         citations: parsed.citations,
-        webSearch: !wantedSearch ? 'desligado' : tool === null ? 'indisponível' : parsed.searched ? 'usado' : 'desligado'
+        webSearch: !wantedSearch ? 'desligado' : tool === null ? 'indisponível' : parsed.searched ? 'usado' : 'desligado',
+        usage: parseAnthropicUsage(payload)
       };
     }
-    throw new Error(`Anthropic recusou o pedido: ${lastError}`);
+    throw new LlmRequestError(`Anthropic recusou o pedido: ${lastError}`, 'other', 0);
   }
 
   private toolPlan(): (string | null)[] {
@@ -231,13 +318,14 @@ export class OpenAiProvider implements LlmProvider {
       const searched = await this.responses(request);
       if (searched) return searched;
     }
-    const text = await this.chat(request);
+    const chat = await this.chat(request);
     return {
       provider: 'openai',
       model: this.model,
-      text,
+      text: chat.text,
       citations: [],
-      webSearch: request.webSearch ? 'indisponível' : 'desligado'
+      webSearch: request.webSearch ? 'indisponível' : 'desligado',
+      usage: chat.usage
     };
   }
 
@@ -256,17 +344,19 @@ export class OpenAiProvider implements LlmProvider {
       signal: AbortSignal.timeout(30_000)
     });
     if (!response.ok) return null;
-    const parsed = parseOpenAiResponses(await response.json());
+    const payload = await response.json();
+    const parsed = parseOpenAiResponses(payload);
     return {
       provider: 'openai',
       model: this.model,
       text: parsed.text,
       citations: parsed.citations,
-      webSearch: 'usado'
+      webSearch: 'usado',
+      usage: parseOpenAiUsage(payload)
     };
   }
 
-  private async chat(request: LlmRequest): Promise<string> {
+  private async chat(request: LlmRequest): Promise<{ text: string; usage: LlmUsage }> {
     const content = request.imagePngBase64
       ? [
           { type: 'text', text: request.user },
@@ -276,11 +366,23 @@ export class OpenAiProvider implements LlmProvider {
     const response = await this.postChat(request.system, content);
     if (!response.ok && request.imagePngBase64) {
       const retry = await this.postChat(request.system, request.user);
-      if (!retry.ok) throw new Error(`OpenAI recusou o pedido: ${await readError(retry, this.apiKey)}`);
-      return parseOpenAiChat(await retry.json());
+      if (!retry.ok) throw await this.failure(retry);
+      const payload = await retry.json();
+      return { text: parseOpenAiChat(payload), usage: parseOpenAiUsage(payload) };
     }
-    if (!response.ok) throw new Error(`OpenAI recusou o pedido: ${await readError(response, this.apiKey)}`);
-    return parseOpenAiChat(await response.json());
+    if (!response.ok) throw await this.failure(response);
+    const payload = await response.json();
+    return { text: parseOpenAiChat(payload), usage: parseOpenAiUsage(payload) };
+  }
+
+  private async failure(response: Response): Promise<LlmRequestError> {
+    const body = await readBody(response);
+    const kind = classifyLlmFailure(response.status, body);
+    return new LlmRequestError(
+      `OpenAI recusou o pedido: HTTP ${response.status} ${sanitize(body, this.apiKey)}`,
+      kind,
+      response.status
+    );
   }
 
   private postChat(system: string, content: unknown): Promise<Response> {

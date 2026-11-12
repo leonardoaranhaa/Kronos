@@ -1,6 +1,20 @@
 import type { ResearchSignal } from '../signals';
 import { analogsDisagree, sentimentDisagrees } from './gates';
-import type { AranhaContext, AranhaVerdict, Bias, PatternContext, WebContext } from './types';
+import type { AranhaContext, AranhaVerdict, Bias, LlmAccountStatus, PatternContext, WebContext } from './types';
+
+export function emptyLlmStatus(): LlmAccountStatus {
+  return {
+    configured: false,
+    provider: null,
+    model: null,
+    mode: 'desligado',
+    reason: null,
+    lastCallAt: null,
+    lastCallOk: null,
+    readingAt: null,
+    usage: null
+  };
+}
 
 export function webBiasOf(sentiment: number | null): Bias {
   if (sentiment === null || !Number.isFinite(sentiment)) return 'neutro';
@@ -37,7 +51,8 @@ export function fuse(
   pattern: PatternContext,
   web: WebContext,
   signal: ResearchSignal | null,
-  filterEnabled: boolean
+  filterEnabled: boolean,
+  llm: LlmAccountStatus = emptyLlmStatus()
 ): AranhaContext {
   const chartBias = pattern.chartReading.bias;
   const webBias = webBiasOf(web.sentiment);
@@ -58,6 +73,7 @@ export function fuse(
     web,
     verdict,
     filterEnabled,
+    llm,
     signal,
     usedSignal: signal
   };
