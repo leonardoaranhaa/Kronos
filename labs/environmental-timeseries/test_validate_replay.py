@@ -77,9 +77,9 @@ class TimeSeriesLabTests(unittest.TestCase):
 
     def test_missing_sample_is_reported_as_an_excessive_gap(self):
         path = self.write_csv(
-            "timestamp,value\\n"
-            "2026-01-01T00:00:00Z,10\\n"
-            "2026-01-01T02:00:00Z,11\\n"
+            "timestamp,value\n"
+            "2026-01-01T00:00:00Z,10\n"
+            "2026-01-01T02:00:00Z,11\n"
         )
         points, _ = load_points(path)
         events = replay(points, expected_interval_seconds=3600)
@@ -90,9 +90,9 @@ class TimeSeriesLabTests(unittest.TestCase):
 
     def test_large_finite_measurements_remain_finite_in_quality_summary(self):
         path = self.write_csv(
-            "timestamp,value\\n"
-            "2026-01-01T00:00:00Z,1e200\\n"
-            "2026-01-01T01:00:00Z,1e200\\n"
+            "timestamp,value\n"
+            "2026-01-01T00:00:00Z,1e200\n"
+            "2026-01-01T01:00:00Z,1e200\n"
         )
         points, _ = load_points(path)
         summary = summarize_quality(replay(points))
@@ -103,10 +103,10 @@ class TimeSeriesLabTests(unittest.TestCase):
 
     def test_quality_summary_handles_negative_and_zero_measurements(self):
         path = self.write_csv(
-            "timestamp,value\\n"
-            "2026-01-01T00:00:00Z,-5\\n"
-            "2026-01-01T01:00:00Z,0\\n"
-            "2026-01-01T02:00:00Z,5\\n"
+            "timestamp,value\n"
+            "2026-01-01T00:00:00Z,-5\n"
+            "2026-01-01T01:00:00Z,0\n"
+            "2026-01-01T02:00:00Z,5\n"
         )
         points, _ = load_points(path)
         summary = summarize_quality(replay(points))
