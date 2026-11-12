@@ -133,12 +133,17 @@ th { color: #94a3b8; font-weight: 600; }
 }
 
 .stack { display: flex; flex-direction: column; gap: 12px; }
+.aranha-live { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; align-items: start; }
+.aranha-live-chart { height: 460px; }
+.rank-list { list-style: none; margin: 0; padding: 0; }
+.rank-button { width: 100%; display: flex; justify-content: space-between; color: #e2e8f0; background: transparent; border: 0; border-bottom: 1px solid #1f2937; padding: 8px 0; cursor: pointer; }
+.rank-button.on { color: #93c5fd; }
 .aranha-chart { height: 360px; }
 .spark { display: block; background: #020617; border-radius: 6px; }
 a, .linkish { color: #93c5fd; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 
 @media (max-width: 800px) {
-  header, .layout { display: block; }
+  header, .layout, .aranha-live { display: block; }
   .card + .card { margin-top: 12px; }
   .chart { height: 240px; }
 }

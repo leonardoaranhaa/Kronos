@@ -21,7 +21,7 @@
     "test:paper": "tsx --test tests/trading-math.test.ts tests/paper-broker.test.ts tests/telegram.test.ts",
     "test:backtest": "tsx --test tests/backtest.test.ts",
     "test:aranha": "tsx --test tests/aranha-analogs.test.ts tests/aranha-structures.test.ts tests/aranha-web.test.ts tests/aranha-fusion.test.ts tests/aranha-backtest.test.ts tests/aranha-llm-status.test.ts",
-    "test:crawler": "tsx --test tests/crawler.test.ts",
+    "test:crawler": "tsx --test tests/crawler.test.ts tests/crawler-live.test.ts",
     "test": "npm run test:candles && npm run test:binance && npm run test:import && npm run test:replay && npm run test:health && npm run test:history && npm run test:signals && npm run test:breaker && npm run test:paper && npm run test:backtest && npm run test:aranha && npm run test:crawler",
     "check": "npm test && npm run build && python3 -m py_compile server/kronos_worker.py && bash -n scripts/setup-kronos.sh",
     "backtest": "tsx server/backtest-cli.ts",

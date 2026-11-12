@@ -42,7 +42,7 @@ const crawler = new CrawlerRuntime(readCrawlerConfig(), {
   forecaster: {
     ready: () => bridge.getStatus() === 'ready',
     predict: async (symbol, bars) => bridge.forecastIfIdle(toCanonical(symbol, bars))
-  }
+  },
 });
 const feed = new MarketFeed(FEED_MODE);
 const MAX_HISTORY = 600;
@@ -61,6 +61,24 @@ let latestForecast: number[] = [];
 let startupInferenceRequested = false;
 const decisions = new Map<number, { close: number; indicators: TechnicalIndicators }>();
 let ingestQueue = Promise.resolve();
+
+crawler.setOnUpdate(() => {
+  const paper = session.getSnapshot();
+  broadcast({
+    type: 'ARANHA_LIVE',
+    payload: crawler.live({
+      symbol: SYMBOL,
+      events: paper.recentEvents.map(event => ({
+        at: event.at,
+        type: event.type,
+        purpose: typeof event.purpose === 'string' ? event.purpose : undefined,
+        side: typeof event.side === 'string' ? event.side : undefined,
+        price: typeof event.price === 'number' ? event.price : undefined,
+        action: typeof event.action === 'string' ? event.action : undefined
+      }))
+    })
+  });
+});
 
 function broadcast(data: unknown) {
   const payload = JSON.stringify(data);
@@ -301,6 +319,21 @@ app.get('/api/history', (_req, res) => {
 
 app.get('/api/paper', (_req, res) => {
   res.json(snapshotPayload());
+});
+
+app.get('/api/aranha-live', (_req, res) => {
+  const paper = session.getSnapshot();
+  res.json(crawler.live({
+    symbol: SYMBOL,
+    events: paper.recentEvents.map(event => ({
+      at: event.at,
+      type: event.type,
+      purpose: typeof event.purpose === 'string' ? event.purpose : undefined,
+      side: typeof event.side === 'string' ? event.side : undefined,
+      price: typeof event.price === 'number' ? event.price : undefined,
+      action: typeof event.action === 'string' ? event.action : undefined
+    }))
+  }));
 });
 
 app.get('/api/crawler', (_req, res) => {

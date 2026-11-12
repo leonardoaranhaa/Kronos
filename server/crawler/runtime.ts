@@ -18,7 +18,8 @@ import {
 } from './whales';
 import { parseTickerPayload, selectUniverse } from './universe';
 import { scoreCoin, toCanonical } from './score';
-import type { BookWall, CrawlerRow, CrawlerSnapshot, MarketBar, OnchainEvent, WhalePrint } from './types';
+import { buildCoinView, type CoinView, type LiveFeedItem, type PaperMark } from './live';
+import type { BookWall, CoinScore, CrawlerRow, CrawlerSnapshot, MarketBar, OnchainEvent, WhalePrint } from './types';
 
 export interface CrawlerForecaster {
   ready(): boolean;
@@ -47,11 +48,56 @@ export class CrawlerRuntime {
 
   constructor(
     config: CrawlerConfig = readCrawlerConfig(),
-    deps: { fetchImpl?: typeof fetch; forecaster?: CrawlerForecaster | null } = {}
+    deps: { fetchImpl?: typeof fetch; forecaster?: CrawlerForecaster | null; onUpdate?: () => void } = {}
   ) {
     this.config = config;
     this.fetchImpl = deps.fetchImpl ?? fetch;
     this.forecaster = deps.forecaster === undefined ? null : deps.forecaster;
+    this.onUpdate = deps.onUpdate;
+  }
+
+  private onUpdate?: () => void;
+  private emitTimer: NodeJS.Timeout | null = null;
+  private readonly lastScores = new Map<string, CoinScore>();
+  private readonly seenFeed = new Set<string>();
+  private feed: LiveFeedItem[] = [];
+
+  /** One payload for the live Aranha screen. Paper marks are only drawn on the paper symbol. */
+  live(paper?: { symbol: string; events?: readonly PaperMark[] }): {
+    updatedAt: string;
+    disclaimer: string;
+    kronosNote: string;
+    paperSymbol: string;
+    rows: CrawlerRow[];
+    feed: LiveFeedItem[];
+    charts: Record<string, CoinView>;
+  } {
+    const paperSymbol = paper?.symbol ?? 'BTCUSDT';
+    const charts: Record<string, CoinView> = {};
+    for (const [symbol, bars] of this.bars) {
+      const score = this.lastScores.get(symbol);
+      const view = buildCoinView({
+        symbol,
+        bars,
+        reason: score?.reason,
+        analogMedianBps: score?.analogMedianBps,
+        whales: this.whales,
+        walls: this.walls,
+        onchain: this.onchain,
+        paper: symbol === paperSymbol ? paper?.events : []
+      });
+      charts[symbol] = view;
+      this.rememberFeed(view.feed);
+    }
+    return {
+      updatedAt: this.updatedAt,
+      disclaimer: 'A Aranha lê o gráfico ao vivo. Nenhuma ordem real é enviada. O score não é probabilidade de ganho.',
+      kronosNote: this.kronosNote(),
+      paperSymbol,
+      rows: this.rows,
+      feed: this.feed,
+      charts
+    };
   }
 
   snapshot(): CrawlerSnapshot {
@@ -99,12 +145,14 @@ export class CrawlerRuntime {
     const scores = symbols.flatMap(symbol => {
       const bars = this.bars.get(symbol);
       if (!bars || bars.length < 30) return [];
-      return [scoreCoin({
+      const scored = scoreCoin({
         symbol,
         bars,
         btcBars: symbol === 'BTCUSDT' ? bars : btc,
         whalePressure: whalePressure(this.prints.get(symbol) ?? [])
-      })];
+      });
+      this.lastScores.set(symbol, scored);
+      return [scored];
     }).sort((a, b) => b.score - a.score || a.symbol.localeCompare(b.symbol));
     const ready = this.forecaster?.ready() ?? false;
     return scores.map((score, index) => this.toRow(score.symbol, score.score, score.reason, score.lastPrice, score.regime1h, index, ready));
@@ -120,6 +168,29 @@ export class CrawlerRuntime {
     this.prints.set(print.symbol, list.slice(-40));
     this.recentPrints.unshift(print);
     this.whales = this.recentPrints.slice(0, 40);
+    this.touch();
+  }
+
+  private rememberFeed(items: readonly LiveFeedItem[]): void {
+    for (const item of items) {
+      if (this.seenFeed.has(item.id)) continue;
+      this.seenFeed.add(item.id);
+      this.feed.unshift(item);
+    }
+    this.feed = this.feed.slice(0, 24);
+  }
+
+  setOnUpdate(listener: () => void): void {
+    this.onUpdate = listener;
+  }
+
+  private touch(): void {
+    if (!this.onUpdate || this.emitTimer) return;
+    this.emitTimer = setTimeout(() => {
+      this.emitTimer = null;
+      this.onUpdate?.();
+    }, 800);
+    this.emitTimer.unref?.();
   }
 
   async refreshRanks(): Promise<CrawlerRow[]> {
@@ -132,6 +203,15 @@ export class CrawlerRuntime {
       return { ...row, kronos: bps === null ? 'indisponivel' : 'rodou', kronosBps: bps };
     });
     this.updatedAt = new Date().toISOString();
+    const leader = this.rows[0];
+    if (leader) {
+      this.rememberFeed([{
+        id: `top-${leader.symbol}-${Math.round(leader.score)}`,
+        time: this.updatedAt,
+        text: `${leader.symbol.replace('USDT', '')} está no topo do ranking, score ${leader.score.toLocaleString('pt-BR')}. ${leader.reason}`
+      }]);
+    }
+    this.touch();
     return this.rows;
   }
 
@@ -204,6 +284,7 @@ export class CrawlerRuntime {
       await this.refreshRanks();
       await this.loadOnchain();
       this.openSocket();
+      this.touch();
     } catch (error) {
       this.errors.unshift(error instanceof Error ? error.message : String(error));
       this.errors = this.errors.slice(0, 8);
