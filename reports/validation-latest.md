@@ -2,7 +2,7 @@
 
 Simulação de pesquisa. Nenhuma ordem real foi enviada. Um número ruim continua publicado. Isto não é conselho de investimento.
 
-Gerado em 2026-11-14T13:35:11.522Z. O registro de tentativas está em `reports/trial-log.jsonl`.
+Gerado em 2026-11-14T13:45:30.602Z. O registro de tentativas está em `reports/trial-log.jsonl`.
 
 ## Regra do veredito
 
@@ -28,9 +28,9 @@ Cada um baixa BTCUSDT 1h, grava o cache de previsões e substitui só essa linha
 
 | Estratégia | Veredito | Excesso no teste | Sharpe | DSR | PBO | Acerto | IC |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Kronos M2: regra escolhida na amostra | inconclusiva | n/d | n/d | n/d | n/d | n/d | n/d |
-| Kronos M3: a mesma regra depois do RoPE | inconclusiva | n/d | n/d | n/d | n/d | n/d | n/d |
-| Kronos: regra atual | inconclusiva | n/d | n/d | n/d | n/d | n/d | n/d |
+| Kronos M2: regra escolhida na amostra | reprovada (provável sorte/overfit) | 7.58% | 1.41 | 0.024 | 0.020 | 49.62% (65/131) | 0.004 |
+| Kronos M3: a mesma regra depois do RoPE | reprovada (provável sorte/overfit) | 8.27% | 1.60 | 0.028 | 0.017 | 48.85% (64/131) | -0.002 |
+| Kronos: regra atual | reprovada (provável sorte/overfit) | 15.45% | 3.63 | 0.122 | 0.000 | 48.85% (64/131) | -0.002 |
 | Aranha: análogos | reprovada | -7.41% | -3.68 | 0.007 | 0.002 | 53.62% (74/138) | 0.060 |
 | Aranha: estruturas | inconclusiva | 15.43% | n/d | n/d | 0.002 | n/d | n/d |
 | Aranha: persistência com filtro | reprovada | -19.95% | -6.31 | 0.000 | 0.002 | 46.25% (37/80) | -0.094 |
@@ -42,27 +42,72 @@ Cada um baixa BTCUSDT 1h, grava o cache de previsões e substitui só essa linha
 
 ### Kronos M2: regra escolhida na amostra
 
-**inconclusiva.** Não há previsões em cache nem o modelo local para refazer o teste. Os números dos relatórios M2 e M3 não foram copiados para cá.
+**reprovada (provável sorte/overfit).** O Sharpe do teste é positivo, mas o Sharpe deflacionado pelo número de tentativas não chega a 0,95.
 
-A grade de 108 combinações está no registro de tentativas, sem o Sharpe de cada uma.
+Regra congelada do M2 (long/short, 50 bps, sem filtro de média). O tokenizer fica em treino, como naquele estudo. O DSR usa as 108 tentativas da grade. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.
 
-Nenhum número novo foi calculado nesta corrida.
+- Retorno no teste: 4.49%. Comprar e segurar: -3.09%. Excesso: 7.58%. Excesso no treino do walk-forward: -20.06%.
+- Sharpe anualizado: 1.41. Sharpe por período: 0.0521. Sharpe deflacionado: 0.024 (referência 0.2299, 108 tentativas, dispersão: erro-padrao).
+- PBO por CSCV: 0.020 em 12870 divisões.
+- Acerto direcional: 49.62% em 131 decisões, 131 sem sobreposição. p-valor 0.5693 (binomial).
+- IC: 0.004 (p=0.9700, n=131).
+- Brier: 0.3440. Brier da taxa-base: 0.2500.
+- Walk-forward: 3 blocos de teste. CPCV com purga e embargo: 15 divisões, mediana do Sharpe por período 0.0152.
+- Observações de retorno no teste: 131.
+
+| P(alta) de | até | previsões | média prevista | frequência realizada |
+| --- | --- | --- | --- | --- |
+| 0% | 10% | 18 | 0.00% | 50.00% |
+| 20% | 30% | 41 | 25.00% | 48.78% |
+| 50% | 60% | 35 | 50.00% | 48.57% |
+| 70% | 80% | 20 | 75.00% | 55.00% |
+| 90% | 100% | 17 | 100.00% | 47.06% |
 
 ### Kronos M3: a mesma regra depois do RoPE
 
-**inconclusiva.** Não há previsões em cache nem o modelo local para refazer o teste. Os números dos relatórios M2 e M3 não foram copiados para cá.
+**reprovada (provável sorte/overfit).** O Sharpe do teste é positivo, mas o Sharpe deflacionado pelo número de tentativas não chega a 0,95.
 
-O M3 não buscou regra nova. Sem o mesmo snapshot e sem as previsões, a comparação antes/depois não foi refeita.
+A mesma regra do M2, com o tokenizer em eval e o patch de RoPE aplicado no checkout. Nenhuma combinação nova entra na grade. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.
 
-Nenhum número novo foi calculado nesta corrida.
+- Retorno no teste: 5.18%. Comprar e segurar: -3.09%. Excesso: 8.27%. Excesso no treino do walk-forward: -19.61%.
+- Sharpe anualizado: 1.60. Sharpe por período: 0.0591. Sharpe deflacionado: 0.028 (referência 0.2311, 109 tentativas, dispersão: erro-padrao).
+- PBO por CSCV: 0.017 em 12870 divisões.
+- Acerto direcional: 48.85% em 131 decisões, 131 sem sobreposição. p-valor 0.6366 (binomial).
+- IC: -0.002 (p=0.9940, n=131).
+- Brier: 0.3531. Brier da taxa-base: 0.2500.
+- Walk-forward: 3 blocos de teste. CPCV com purga e embargo: 15 divisões, mediana do Sharpe por período 0.0152.
+- Observações de retorno no teste: 131.
+
+| P(alta) de | até | previsões | média prevista | frequência realizada |
+| --- | --- | --- | --- | --- |
+| 0% | 10% | 25 | 0.00% | 48.00% |
+| 20% | 30% | 33 | 25.00% | 54.55% |
+| 50% | 60% | 33 | 50.00% | 42.42% |
+| 70% | 80% | 23 | 75.00% | 52.17% |
+| 90% | 100% | 17 | 100.00% | 52.94% |
 
 ### Kronos: regra atual
 
-**inconclusiva.** Não há previsões em cache nem o modelo local para refazer o teste. Os números dos relatórios M2 e M3 não foram copiados para cá.
+**reprovada (provável sorte/overfit).** O Sharpe do teste é positivo, mas o Sharpe deflacionado pelo número de tentativas não chega a 0,95.
 
-A regra atual usa a previsão do modelo, o filtro de média e o bloqueio de RSI. Sem previsão, não há o que validar. Rode npm run validate -- --strategy kronos-rule numa máquina com o worker.
+Regra ao vivo: movimento mínimo de 30 bps, EMA9/EMA20 e bloqueio de RSI. O tokenizer fica em eval. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.
 
-Nenhum número novo foi calculado nesta corrida.
+- Retorno no teste: 12.36%. Comprar e segurar: -3.09%. Excesso: 15.45%. Excesso no treino do walk-forward: -18.56%.
+- Sharpe anualizado: 3.63. Sharpe por período: 0.1344. Sharpe deflacionado: 0.122 (referência 0.2467, 110 tentativas, dispersão: erro-padrao).
+- PBO por CSCV: 0.000 em 12870 divisões.
+- Acerto direcional: 48.85% em 131 decisões, 131 sem sobreposição. p-valor 0.6366 (binomial).
+- IC: -0.002 (p=0.9940, n=131).
+- Brier: 0.3531. Brier da taxa-base: 0.2500.
+- Walk-forward: 3 blocos de teste. CPCV com purga e embargo: 15 divisões, mediana do Sharpe por período 0.0623.
+- Observações de retorno no teste: 131.
+
+| P(alta) de | até | previsões | média prevista | frequência realizada |
+| --- | --- | --- | --- | --- |
+| 0% | 10% | 25 | 0.00% | 48.00% |
+| 20% | 30% | 33 | 25.00% | 54.55% |
+| 50% | 60% | 33 | 50.00% | 42.42% |
+| 70% | 80% | 23 | 75.00% | 52.17% |
+| 90% | 100% | 17 | 100.00% | 52.94% |
 
 ### Aranha: análogos
 
@@ -166,6 +211,7 @@ A mesma carteira, ordenada só pelo volume anormal com o sinal da vela.
 
 ## Dados
 
+- BTCUSDT 1h: 2880 candles, 2026-07-17T13:00:00.000Z a 2026-11-14T12:00:00.000Z. SHA-256 6953cf118db4c4091a07fbe21fc204ed0bf2d00868236bd6b8bab81c8d2bfd10. Fonte: https://data-api.binance.vision/api/v3/klines.
 - BTCUSDT 1h: 2879 candles, 2026-07-17T14:00:00.000Z a 2026-11-14T12:00:00.000Z. SHA-256 7b78044c683cd74a201f0ba7cb9f7292fecd558521b7b5061b4d645eb0268715. Fonte: https://data-api.binance.vision/api/v3/klines.
 - BTCUSDT 5m: 3455 candles, 2026-11-02T13:35:00.000Z a 2026-11-14T13:25:00.000Z. SHA-256 e4de4f70deb179cbe8047d5c6ae7973c89e06a58045624fdf0da6e1650b85059. Fonte: https://data-api.binance.vision/api/v3/klines.
 - ETHUSDT 5m: 3456 candles, 2026-11-02T13:35:00.000Z a 2026-11-14T13:30:00.000Z. SHA-256 8d24167573daa50d4ee70a7d163181fb3710f37e502adbe870f4ea679f8d75ba. Fonte: https://data-api.binance.vision/api/v3/klines.
@@ -182,7 +228,7 @@ A mesma carteira, ordenada só pelo volume anormal com o sinal da vela.
 
 ## Tentativas registradas
 
-- kronos: 108
+- kronos: 111
 - aranha: 3
 - crawler: 3
 
@@ -193,3 +239,6 @@ A mesma carteira, ordenada só pelo volume anormal com o sinal da vela.
 - Decisões cujo horizonte se sobrepõe não entram no teste binomial como se fossem independentes. O p-valor usado é o mais alto entre o binomial das decisões sem sobreposição e, quando há sobreposição, um bootstrap em blocos.
 - A grade do Kronos M2 continua registrada como 108 tentativas. Os Sharpes daquela grade não foram arquivados, então esta corrida não inventa um DSR para o Kronos.
 - No crawler, a carteira é reavaliada a cada 12 candles de 5 minutos e segurada por essas mesmas 12 velas. Janelas de 4h e 24h do estudo antigo se sobrepõem e não entram no veredito.
+- Kronos M2: regra escolhida na amostra foi medido com o worker local. O cache fica em data/research-cache/.
+- Kronos M3: a mesma regra depois do RoPE foi medido com o worker local. O cache fica em data/research-cache/.
+- Kronos: regra atual foi medido com o worker local. O cache fica em data/research-cache/.

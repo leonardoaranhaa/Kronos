@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-14T13:35:11.522Z",
+  "generatedAt": "2026-11-14T13:45:30.602Z",
   "disclaimer": "Simulação de pesquisa. Nenhuma ordem real foi enviada. Um número ruim continua publicado. Isto não é conselho de investimento.",
   "gates": {
     "minIndependentDecisions": 30,
@@ -9,11 +9,20 @@
   },
   "trialLog": "reports/trial-log.jsonl",
   "trialsByFamily": {
-    "kronos": 108,
+    "kronos": 111,
     "aranha": 3,
     "crawler": 3
   },
   "datasets": [
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "candles": 2880,
+      "firstOpenTime": 1784293200000,
+      "lastOpenTime": 1794657600000,
+      "sha256": "6953cf118db4c4091a07fbe21fc204ed0bf2d00868236bd6b8bab81c8d2bfd10",
+      "source": "https://data-api.binance.vision/api/v3/klines"
+    },
     {
       "symbol": "BTCUSDT",
       "interval": "1h",
@@ -137,28 +146,226 @@
       "id": "kronos-m2",
       "family": "kronos",
       "name": "Kronos M2: regra escolhida na amostra",
-      "verdict": "inconclusiva",
-      "reason": "Não há previsões em cache nem o modelo local para refazer o teste. Os números dos relatórios M2 e M3 não foram copiados para cá.",
-      "note": "A grade de 108 combinações está no registro de tentativas, sem o Sharpe de cada uma.",
-      "metrics": null
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O Sharpe do teste é positivo, mas o Sharpe deflacionado pelo número de tentativas não chega a 0,95.",
+      "note": "Regra congelada do M2 (long/short, 50 bps, sem filtro de média). O tokenizer fica em treino, como naquele estudo. O DSR usa as 108 tentativas da grade. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.",
+      "metrics": {
+        "directionalAccuracy": 0.4961832061068702,
+        "directionalHits": 65,
+        "directionalCompared": 131,
+        "independentCompared": 131,
+        "directionPValue": 0.5693155344744687,
+        "directionMethod": "binomial",
+        "informationCoefficient": 0.0037473976405274115,
+        "informationCoefficientPValue": 0.97,
+        "informationCoefficientObservations": 131,
+        "strategyReturnPct": 4.494645605921899,
+        "buyAndHoldReturnPct": -3.0894422356058993,
+        "excessReturnPct": 7.584087841527798,
+        "trainExcessReturnPct": -20.062045999146516,
+        "sharpe": 1.4069992642287439,
+        "sharpePerPeriod": 0.052057554227438296,
+        "deflatedSharpeRatio": 0.02393428755304506,
+        "deflatedSharpeBenchmark": 0.22993676190741977,
+        "deflatedSharpeTrials": 108,
+        "deflatedSharpeDispersion": "erro-padrao",
+        "probabilityOfBacktestOverfitting": 0.02035742035742036,
+        "pboSplits": 12870,
+        "brier": 0.3439885496183206,
+        "climatologyBrier": 0.24998543208437793,
+        "reliability": [
+          {
+            "binLow": 0,
+            "binHigh": 0.1,
+            "count": 18,
+            "meanPredicted": 0,
+            "realizedUpRate": 0.5
+          },
+          {
+            "binLow": 0.2,
+            "binHigh": 0.3,
+            "count": 41,
+            "meanPredicted": 0.25,
+            "realizedUpRate": 0.4878048780487805
+          },
+          {
+            "binLow": 0.5,
+            "binHigh": 0.6,
+            "count": 35,
+            "meanPredicted": 0.5,
+            "realizedUpRate": 0.4857142857142857
+          },
+          {
+            "binLow": 0.7,
+            "binHigh": 0.8,
+            "count": 20,
+            "meanPredicted": 0.75,
+            "realizedUpRate": 0.55
+          },
+          {
+            "binLow": 0.9,
+            "binHigh": 1,
+            "count": 17,
+            "meanPredicted": 1,
+            "realizedUpRate": 0.47058823529411764
+          }
+        ],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": 0.015247176535117384,
+        "observations": 131,
+        "independentDecisions": 131
+      }
     },
     {
       "id": "kronos-m3",
       "family": "kronos",
       "name": "Kronos M3: a mesma regra depois do RoPE",
-      "verdict": "inconclusiva",
-      "reason": "Não há previsões em cache nem o modelo local para refazer o teste. Os números dos relatórios M2 e M3 não foram copiados para cá.",
-      "note": "O M3 não buscou regra nova. Sem o mesmo snapshot e sem as previsões, a comparação antes/depois não foi refeita.",
-      "metrics": null
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O Sharpe do teste é positivo, mas o Sharpe deflacionado pelo número de tentativas não chega a 0,95.",
+      "note": "A mesma regra do M2, com o tokenizer em eval e o patch de RoPE aplicado no checkout. Nenhuma combinação nova entra na grade. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.",
+      "metrics": {
+        "directionalAccuracy": 0.48854961832061067,
+        "directionalHits": 64,
+        "directionalCompared": 131,
+        "independentCompared": 131,
+        "directionPValue": 0.6365619485168558,
+        "directionMethod": "binomial",
+        "informationCoefficient": -0.0021512838306731435,
+        "informationCoefficientPValue": 0.994,
+        "informationCoefficientObservations": 131,
+        "strategyReturnPct": 5.177699033168537,
+        "buyAndHoldReturnPct": -3.0894422356058993,
+        "excessReturnPct": 8.267141268774436,
+        "trainExcessReturnPct": -19.611638441983537,
+        "sharpe": 1.5973504470758155,
+        "sharpePerPeriod": 0.05910035607904428,
+        "deflatedSharpeRatio": 0.028338325266338858,
+        "deflatedSharpeBenchmark": 0.2310644613628208,
+        "deflatedSharpeTrials": 109,
+        "deflatedSharpeDispersion": "erro-padrao",
+        "probabilityOfBacktestOverfitting": 0.01717171717171717,
+        "pboSplits": 12870,
+        "brier": 0.3530534351145038,
+        "climatologyBrier": 0.24998543208437793,
+        "reliability": [
+          {
+            "binLow": 0,
+            "binHigh": 0.1,
+            "count": 25,
+            "meanPredicted": 0,
+            "realizedUpRate": 0.48
+          },
+          {
+            "binLow": 0.2,
+            "binHigh": 0.3,
+            "count": 33,
+            "meanPredicted": 0.25,
+            "realizedUpRate": 0.5454545454545454
+          },
+          {
+            "binLow": 0.5,
+            "binHigh": 0.6,
+            "count": 33,
+            "meanPredicted": 0.5,
+            "realizedUpRate": 0.42424242424242425
+          },
+          {
+            "binLow": 0.7,
+            "binHigh": 0.8,
+            "count": 23,
+            "meanPredicted": 0.75,
+            "realizedUpRate": 0.5217391304347826
+          },
+          {
+            "binLow": 0.9,
+            "binHigh": 1,
+            "count": 17,
+            "meanPredicted": 1,
+            "realizedUpRate": 0.5294117647058824
+          }
+        ],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": 0.015247176535118496,
+        "observations": 131,
+        "independentDecisions": 131
+      }
     },
     {
       "id": "kronos-rule",
       "family": "kronos",
       "name": "Kronos: regra atual",
-      "verdict": "inconclusiva",
-      "reason": "Não há previsões em cache nem o modelo local para refazer o teste. Os números dos relatórios M2 e M3 não foram copiados para cá.",
-      "note": "A regra atual usa a previsão do modelo, o filtro de média e o bloqueio de RSI. Sem previsão, não há o que validar. Rode npm run validate -- --strategy kronos-rule numa máquina com o worker.",
-      "metrics": null
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O Sharpe do teste é positivo, mas o Sharpe deflacionado pelo número de tentativas não chega a 0,95.",
+      "note": "Regra ao vivo: movimento mínimo de 30 bps, EMA9/EMA20 e bloqueio de RSI. O tokenizer fica em eval. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.",
+      "metrics": {
+        "directionalAccuracy": 0.48854961832061067,
+        "directionalHits": 64,
+        "directionalCompared": 131,
+        "independentCompared": 131,
+        "directionPValue": 0.6365619485168558,
+        "directionMethod": "binomial",
+        "informationCoefficient": -0.0021512838306731435,
+        "informationCoefficientPValue": 0.994,
+        "informationCoefficientObservations": 131,
+        "strategyReturnPct": 12.364134342554856,
+        "buyAndHoldReturnPct": -3.0894422356058993,
+        "excessReturnPct": 15.453576578160755,
+        "trainExcessReturnPct": -18.56438690001876,
+        "sharpe": 3.633506162793791,
+        "sharpePerPeriod": 0.1344360646905197,
+        "deflatedSharpeRatio": 0.12168091943123566,
+        "deflatedSharpeBenchmark": 0.24667612044786386,
+        "deflatedSharpeTrials": 110,
+        "deflatedSharpeDispersion": "erro-padrao",
+        "probabilityOfBacktestOverfitting": 0.0004662004662004662,
+        "pboSplits": 12870,
+        "brier": 0.3530534351145038,
+        "climatologyBrier": 0.24998543208437793,
+        "reliability": [
+          {
+            "binLow": 0,
+            "binHigh": 0.1,
+            "count": 25,
+            "meanPredicted": 0,
+            "realizedUpRate": 0.48
+          },
+          {
+            "binLow": 0.2,
+            "binHigh": 0.3,
+            "count": 33,
+            "meanPredicted": 0.25,
+            "realizedUpRate": 0.5454545454545454
+          },
+          {
+            "binLow": 0.5,
+            "binHigh": 0.6,
+            "count": 33,
+            "meanPredicted": 0.5,
+            "realizedUpRate": 0.42424242424242425
+          },
+          {
+            "binLow": 0.7,
+            "binHigh": 0.8,
+            "count": 23,
+            "meanPredicted": 0.75,
+            "realizedUpRate": 0.5217391304347826
+          },
+          {
+            "binLow": 0.9,
+            "binHigh": 1,
+            "count": 17,
+            "meanPredicted": 1,
+            "realizedUpRate": 0.5294117647058824
+          }
+        ],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": 0.06225622939687186,
+        "observations": 131,
+        "independentDecisions": 131
+      }
     },
     {
       "id": "aranha-analogs",
@@ -450,6 +657,9 @@
     "O Sharpe deflacionado segue Bailey e López de Prado. O PBO segue a validação cruzada simétrica combinatória de Bailey, Borwein, López de Prado e Zhu. O código é próprio; pypbo, que é AGPL, não é importado.",
     "Decisões cujo horizonte se sobrepõe não entram no teste binomial como se fossem independentes. O p-valor usado é o mais alto entre o binomial das decisões sem sobreposição e, quando há sobreposição, um bootstrap em blocos.",
     "A grade do Kronos M2 continua registrada como 108 tentativas. Os Sharpes daquela grade não foram arquivados, então esta corrida não inventa um DSR para o Kronos.",
-    "No crawler, a carteira é reavaliada a cada 12 candles de 5 minutos e segurada por essas mesmas 12 velas. Janelas de 4h e 24h do estudo antigo se sobrepõem e não entram no veredito."
+    "No crawler, a carteira é reavaliada a cada 12 candles de 5 minutos e segurada por essas mesmas 12 velas. Janelas de 4h e 24h do estudo antigo se sobrepõem e não entram no veredito.",
+    "Kronos M2: regra escolhida na amostra foi medido com o worker local. O cache fica em data/research-cache/.",
+    "Kronos M3: a mesma regra depois do RoPE foi medido com o worker local. O cache fica em data/research-cache/.",
+    "Kronos: regra atual foi medido com o worker local. O cache fica em data/research-cache/."
   ]
 }
