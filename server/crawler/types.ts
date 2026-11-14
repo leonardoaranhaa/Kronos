@@ -40,6 +40,8 @@ export interface TickerInfo {
   lastPrice: number;
   priceChangePercent: number;
   quoteVolume: number;
+  highPrice: number | null;
+  lowPrice: number | null;
   status?: string;
 }
 
@@ -50,6 +52,8 @@ export interface CrawlerRow {
   lastPrice: number;
   change24hPct: number | null;
   quoteVolume24h: number | null;
+  high24h: number | null;
+  low24h: number | null;
   regime: string;
   kronos: 'fora' | 'fila' | 'rodou' | 'indisponivel';
   kronosBps: number | null;
@@ -63,6 +67,25 @@ export interface WhalePrint {
   usd: number;
   side: 'compra' | 'venda';
   price: number;
+}
+
+export interface DepthLevel {
+  price: number;
+  quantity: number;
+}
+
+export interface DepthBook {
+  bids: DepthLevel[];
+  asks: DepthLevel[];
+}
+
+export interface TapePrint {
+  symbol: string;
+  time: string;
+  price: number;
+  quantity: number;
+  usd: number;
+  side: 'compra' | 'venda';
 }
 
 export interface BookWall {

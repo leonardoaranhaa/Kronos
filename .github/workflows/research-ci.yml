@@ -11,6 +11,7 @@ on:
       - cursor/kronos-patch-layer-m3-6762
       - cursor/aranha-digital-ce63
       - cursor/crypto-crawler-ce63
+      - cursor/chart-dashboard-ce63
   pull_request:
     branches:
       - main

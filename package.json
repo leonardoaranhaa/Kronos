@@ -22,10 +22,11 @@
     "test:backtest": "tsx --test tests/backtest.test.ts",
     "test:aranha": "tsx --test tests/aranha-analogs.test.ts tests/aranha-structures.test.ts tests/aranha-web.test.ts tests/aranha-fusion.test.ts tests/aranha-backtest.test.ts tests/aranha-llm-status.test.ts",
     "test:crawler": "tsx --test tests/crawler.test.ts tests/crawler-live.test.ts tests/crawler-journal.test.ts",
+    "test:chart": "tsx --test tests/chart-indicators.test.ts tests/chart-drawings.test.ts tests/public-klines.test.ts",
     "test:research": "tsx --test tests/research.test.ts",
     "test:rope": "tsx --test tests/rope-positions.test.ts",
     "test:rope-module": ".venv/bin/python tests/test_rope_positions.py",
-    "test": "npm run test:candles && npm run test:binance && npm run test:import && npm run test:replay && npm run test:health && npm run test:history && npm run test:signals && npm run test:breaker && npm run test:paper && npm run test:backtest && npm run test:aranha && npm run test:crawler && npm run test:research && npm run test:rope",
+    "test": "npm run test:candles && npm run test:binance && npm run test:import && npm run test:replay && npm run test:health && npm run test:history && npm run test:signals && npm run test:breaker && npm run test:paper && npm run test:backtest && npm run test:aranha && npm run test:crawler && npm run test:chart && npm run test:research && npm run test:rope",
     "check": "npm test && npm run build && python3 -m py_compile server/kronos_worker.py && bash -n scripts/setup-kronos.sh",
     "backtest": "tsx server/backtest-cli.ts",
     "backtest:aranha": "tsx server/aranha/cli.ts",
@@ -34,24 +35,25 @@
     "research:m3": "tsx server/research-m3-cli.ts"
   },
   "dependencies": {
-    "express": "^4.19.2",
     "cors": "^2.8.5",
-    "ws": "^8.17.0",
+    "express": "^4.19.2",
+    "lightweight-charts": "^4.2.1",
+    "lucide-react": "^0.380.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "lucide-react": "^0.380.0"
+    "ws": "^8.17.0"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17",
-    "@types/ws": "^8.5.10",
+    "@types/express": "^4.17.21",
     "@types/node": "^20.12.12",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@types/ws": "^8.5.10",
     "@vitejs/plugin-react": "^4.3.0",
-    "typescript": "^5.4.5",
-    "vite": "^5.2.11",
+    "concurrently": "^8.2.2",
     "tsx": "^4.10.5",
-    "concurrently": "^8.2.2"
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
   }
 }

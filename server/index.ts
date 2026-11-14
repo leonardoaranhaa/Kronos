@@ -25,6 +25,7 @@ import { AranhaRuntime } from './aranha/runtime';
 import { CrawlerRuntime } from './crawler/runtime';
 import { readCrawlerConfig } from './crawler/config';
 import { toCanonical } from './crawler/score';
+import { isPublicInterval, parsePublicKlines } from './market/public-klines';
 
 loadEnvFile();
 
@@ -355,6 +356,33 @@ app.get('/api/health', (_req, res) => {
     timeframe: TIMEFRAME,
     ...describeHistory(history)
   });
+});
+
+app.get('/api/klines', async (req, res) => {
+  const symbol = String(req.query.symbol || '').toUpperCase();
+  const interval = String(req.query.interval || '5m');
+  const limit = Math.min(1000, Math.max(50, Number(req.query.limit) || 500));
+  const endRaw = req.query.endTime === undefined ? undefined : Number(req.query.endTime);
+  if (!/^[A-Z0-9]{5,20}$/.test(symbol) || !isPublicInterval(interval) || (endRaw !== undefined && !Number.isFinite(endRaw))) {
+    res.status(400).json({ error: 'Pedido inválido.', candles: [] });
+    return;
+  }
+  try {
+    const base = (process.env.BINANCE_REST_BASE_URL || 'https://data-api.binance.vision').replace(/\/$/, '');
+    const url = new URL(`${base}/api/v3/klines`);
+    url.searchParams.set('symbol', symbol);
+    url.searchParams.set('interval', interval);
+    url.searchParams.set('limit', String(limit));
+    if (endRaw !== undefined) url.searchParams.set('endTime', String(Math.trunc(endRaw)));
+    const response = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+    if (!response.ok) {
+      res.status(502).json({ error: `A Binance respondeu HTTP ${response.status}.`, candles: [] });
+      return;
+    }
+    res.json({ symbol, interval, candles: parsePublicKlines(await response.json()) });
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : 'Sem dados da Binance.', candles: [] });
+  }
 });
 
 app.get('/api/history', (_req, res) => {

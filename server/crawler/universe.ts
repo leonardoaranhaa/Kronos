@@ -36,6 +36,8 @@ export function parseTickerPayload(payload: unknown): TickerInfo[] {
     const lastPrice = Number(row.lastPrice);
     const priceChangePercent = Number(row.priceChangePercent);
     const quoteVolume = Number(row.quoteVolume);
+    const highPrice = Number(row.highPrice);
+    const lowPrice = Number(row.lowPrice);
     rows.push({
       symbol,
       base: symbol.slice(0, -4),
@@ -43,6 +45,8 @@ export function parseTickerPayload(payload: unknown): TickerInfo[] {
       lastPrice,
       priceChangePercent: Number.isFinite(priceChangePercent) ? priceChangePercent : 0,
       quoteVolume: Number.isFinite(quoteVolume) ? quoteVolume : 0,
+      highPrice: Number.isFinite(highPrice) && highPrice > 0 ? highPrice : null,
+      lowPrice: Number.isFinite(lowPrice) && lowPrice > 0 ? lowPrice : null,
       status: typeof row.status === 'string' ? row.status : undefined
     });
   }
