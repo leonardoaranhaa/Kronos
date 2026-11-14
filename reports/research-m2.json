@@ -1,0 +1,975 @@
+{
+  "generatedAt": "2026-11-12T20:22:33.785Z",
+  "disclaimer": "Pesquisa. Nenhuma ordem real foi enviada. Um resultado negativo continua publicado.",
+  "summaryPt": "Este estudo pergunta se o Kronos-small acerta a direção melhor do que uma moeda e se alguma regra de operação, depois de taxas, fica melhor do que comprar e segurar. A resposta principal usa só BTCUSDT em candles de 1 hora, no período guardado desde 12 de agosto de 2026. A direção nesse período foi 51.9% (96/185, p=0.330). A configuração escolhida só com dados anteriores rendeu -0.95% fora da amostra. Comprar e segurar rendeu 12.00%. Na amostra de treino essa mesma regra tinha rendido 10.67%. Esse ganho não se repetiu fora da amostra. Nenhuma regra foi promovida para o paper. O padrão continua sendo a regra atual. Na amostra de treino foram comparadas 108 combinações, todas em BTCUSDT 1h. Fora da amostra a direção foi medida em 9 séries. O limite do teste principal é 0.05. Um p-valor pequeno numa série secundária, sozinho, não conta como descoberta. Um número negativo é um resultado. Ele não foi refeito para ficar bonito.",
+  "promoteToPaper": false,
+  "promotionReasons": [
+    "O p-valor da direção foi 0.3296, acima de 0.05.",
+    "Houve 12 trades fora da amostra; o mínimo é 15.",
+    "O retorno -0.95% não superou comprar e segurar (12.00%)."
+  ],
+  "tunedParams": {
+    "id": "escolhida-na-amostra",
+    "mode": "long_short",
+    "trendFilter": false,
+    "minMoveBps": 50,
+    "atrMultiple": 0,
+    "maxDispersionBps": 10000
+  },
+  "tunedInSample": {
+    "label": "escolhida-na-amostra",
+    "returnPct": 10.670171263781231,
+    "maxDrawdownPct": 24.46915774540771,
+    "sharpe": 0.5399069611983014,
+    "closedTrades": 43,
+    "wins": 27,
+    "winRatePct": 62.7906976744186,
+    "feesPaid": 955.0024224461221,
+    "endingEquity": 11067.017126378123
+  },
+  "tuning": {
+    "tried": 108,
+    "eligible": 17,
+    "series": "BTCUSDT 1h"
+  },
+  "multipleTesting": {
+    "inSampleConfigs": 108,
+    "outOfSampleDirectionTests": 9,
+    "primaryAlpha": 0.05,
+    "bonferroniAlpha": 0.005555555555555556
+  },
+  "directional": [
+    {
+      "symbol": "BTCUSDT",
+      "interval": "5m",
+      "split": "in_sample",
+      "hits": 278,
+      "compared": 545,
+      "accuracy": 0.5100917431192661,
+      "pValue": 0.334216620623694,
+      "mae": 231.5940627866971
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "hits": 103,
+      "compared": 185,
+      "accuracy": 0.5567567567567567,
+      "pValue": 0.07061877950511376,
+      "mae": 210.70099662162156
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "in_sample",
+      "hits": 264,
+      "compared": 525,
+      "accuracy": 0.5028571428571429,
+      "pValue": 0.46522711087320207,
+      "mae": 605.6597708333337
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "hits": 96,
+      "compared": 185,
+      "accuracy": 0.518918918918919,
+      "pValue": 0.32961838176785463,
+      "mae": 557.4819163851352
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "4h",
+      "split": "in_sample",
+      "hits": 317,
+      "compared": 689,
+      "accuracy": 0.46008708272859217,
+      "pValue": 0.9835928622802236,
+      "mae": 1434.1366547986224
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "hits": 144,
+      "compared": 275,
+      "accuracy": 0.5236363636363637,
+      "pValue": 0.23467974008070105,
+      "mae": 1566.2184113636358
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "5m",
+      "split": "in_sample",
+      "hits": 256,
+      "compared": 545,
+      "accuracy": 0.46972477064220186,
+      "pValue": 0.9273934242869291,
+      "mae": 9.616278383027517
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "hits": 97,
+      "compared": 185,
+      "accuracy": 0.5243243243243243,
+      "pValue": 0.2782673823783868,
+      "mae": 9.134251002956088
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "split": "in_sample",
+      "hits": 266,
+      "compared": 525,
+      "accuracy": 0.5066666666666667,
+      "pValue": 0.39672909205764445,
+      "mae": 24.88229038318453
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "hits": 103,
+      "compared": 185,
+      "accuracy": 0.5567567567567567,
+      "pValue": 0.07061877950511376,
+      "mae": 23.2309554740287
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "4h",
+      "split": "in_sample",
+      "hits": 350,
+      "compared": 689,
+      "accuracy": 0.5079825834542816,
+      "pValue": 0.35162753173698647,
+      "mae": 56.28298591425526
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "hits": 158,
+      "compared": 275,
+      "accuracy": 0.5745454545454546,
+      "pValue": 0.007853842679254649,
+      "mae": 62.55163027343752
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "5m",
+      "split": "in_sample",
+      "hits": 269,
+      "compared": 533,
+      "accuracy": 0.5046904315196998,
+      "pValue": 0.4312341881404307,
+      "mae": 0.46746938498960633
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "hits": 95,
+      "compared": 183,
+      "accuracy": 0.5191256830601093,
+      "pValue": 0.32874945768881936,
+      "mae": 0.4773318349477406
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "split": "in_sample",
+      "hits": 263,
+      "compared": 524,
+      "accuracy": 0.5019083969465649,
+      "pValue": 0.4825804383990891,
+      "mae": 1.2301091372535342
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "hits": 105,
+      "compared": 184,
+      "accuracy": 0.5706521739130435,
+      "pValue": 0.03251631521258888,
+      "mae": 1.1246322747307853
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "4h",
+      "split": "in_sample",
+      "hits": 343,
+      "compared": 687,
+      "accuracy": 0.4992721979621543,
+      "pValue": 0.5304080122765639,
+      "mae": 2.5800914335873717
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "hits": 140,
+      "compared": 275,
+      "accuracy": 0.509090909090909,
+      "pValue": 0.40472336276267895,
+      "mae": 3.266709709028767
+    }
+  ],
+  "rows": [
+    {
+      "symbol": "BTCUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "regra-atual",
+      "returnPct": 5.564340654522584,
+      "maxDrawdownPct": 14.896745214390295,
+      "sharpe": 0.8113537473916057,
+      "closedTrades": 2,
+      "winRatePct": 50
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "comprar-e-segurar",
+      "returnPct": 11.786493123689798,
+      "maxDrawdownPct": 18.24533487201075,
+      "sharpe": 1.37707212952975,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "ultimo-candle",
+      "returnPct": -14.382492968555125,
+      "maxDrawdownPct": 27.918367498537368,
+      "sharpe": -1.4491070703470248,
+      "closedTrades": 102,
+      "winRatePct": 35.294117647058826
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "aleatorio",
+      "returnPct": -43.28444915556766,
+      "maxDrawdownPct": 45.06460150875467,
+      "sharpe": -5.800581371037704,
+      "closedTrades": 58,
+      "winRatePct": 29.310344827586203
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "regra-atual-so-compra",
+      "returnPct": -1.7387971853939417,
+      "maxDrawdownPct": 12.249328069871115,
+      "sharpe": -0.08192519017975491,
+      "closedTrades": 1,
+      "winRatePct": 0
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "escolhida-na-amostra",
+      "returnPct": -0.06310687723891534,
+      "maxDrawdownPct": 21.98349951943108,
+      "sharpe": 0.21932122868214685,
+      "closedTrades": 1,
+      "winRatePct": 0
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "in_sample",
+      "strategy": "escolhida-na-amostra",
+      "returnPct": 10.670171263781231,
+      "maxDrawdownPct": 24.46915774540771,
+      "sharpe": 0.5399069611983014,
+      "closedTrades": 43,
+      "winRatePct": 62.7906976744186
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "in_sample",
+      "strategy": "comprar-e-segurar",
+      "returnPct": -24.766885360037584,
+      "maxDrawdownPct": 40.310273033879994,
+      "sharpe": -0.6777376484936303,
+      "closedTrades": 1,
+      "winRatePct": 0
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "in_sample",
+      "strategy": "ultimo-candle",
+      "returnPct": -58.14397376088747,
+      "maxDrawdownPct": 66.82876205082997,
+      "sharpe": -2.541911345982311,
+      "closedTrades": 257,
+      "winRatePct": 38.13229571984436
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "in_sample",
+      "strategy": "aleatorio",
+      "returnPct": -47.893378962886736,
+      "maxDrawdownPct": 50.275014715853104,
+      "sharpe": -1.8372297247353897,
+      "closedTrades": 175,
+      "winRatePct": 45.14285714285714
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual",
+      "returnPct": -16.238629021241977,
+      "maxDrawdownPct": 27.628095608687943,
+      "sharpe": -1.9621431448570423,
+      "closedTrades": 11,
+      "winRatePct": 18.181818181818183
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "comprar-e-segurar",
+      "returnPct": 11.999048444692125,
+      "maxDrawdownPct": 17.85588370359981,
+      "sharpe": 1.4018520337578992,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "ultimo-candle",
+      "returnPct": -25.69824799594397,
+      "maxDrawdownPct": 29.136285604701683,
+      "sharpe": -2.9576897056909615,
+      "closedTrades": 85,
+      "winRatePct": 40
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "aleatorio",
+      "returnPct": -41.82876215198945,
+      "maxDrawdownPct": 42.12964040359879,
+      "sharpe": -5.550445276688326,
+      "closedTrades": 48,
+      "winRatePct": 35.41666666666667
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual-so-compra",
+      "returnPct": -10.40610723034246,
+      "maxDrawdownPct": 12.312768122291748,
+      "sharpe": -2.6944453640002557,
+      "closedTrades": 5,
+      "winRatePct": 0
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "escolhida-na-amostra",
+      "returnPct": -0.9520875858070394,
+      "maxDrawdownPct": 18.207753400401927,
+      "sharpe": 0.08425384659746615,
+      "closedTrades": 12,
+      "winRatePct": 58.333333333333336
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual",
+      "returnPct": -39.2999224152739,
+      "maxDrawdownPct": 40.237587641396836,
+      "sharpe": -4.331324626557686,
+      "closedTrades": 16,
+      "winRatePct": 18.75
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "comprar-e-segurar",
+      "returnPct": 11.994802733716933,
+      "maxDrawdownPct": 17.417538052018656,
+      "sharpe": 1.3855668110633719,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "ultimo-candle",
+      "returnPct": -25.04053410739428,
+      "maxDrawdownPct": 28.77116158649792,
+      "sharpe": -2.809308351286793,
+      "closedTrades": 128,
+      "winRatePct": 28.125
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "aleatorio",
+      "returnPct": -32.82848901228086,
+      "maxDrawdownPct": 41.827652432153066,
+      "sharpe": -3.929344050407014,
+      "closedTrades": 93,
+      "winRatePct": 31.182795698924732
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual-so-compra",
+      "returnPct": -13.517478209727724,
+      "maxDrawdownPct": 15.677696372584816,
+      "sharpe": -3.344216877577903,
+      "closedTrades": 8,
+      "winRatePct": 12.5
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "escolhida-na-amostra",
+      "returnPct": -25.007062054917334,
+      "maxDrawdownPct": 33.85902596927259,
+      "sharpe": -2.5892907032891608,
+      "closedTrades": 33,
+      "winRatePct": 51.515151515151516
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "regra-atual",
+      "returnPct": 17.065564155309694,
+      "maxDrawdownPct": 17.841457441226975,
+      "sharpe": 1.5343861715532965,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "comprar-e-segurar",
+      "returnPct": 5.372497670158754,
+      "maxDrawdownPct": 29.057756828740427,
+      "sharpe": 0.6614491548556045,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "ultimo-candle",
+      "returnPct": -30.499694145537397,
+      "maxDrawdownPct": 41.19410153229131,
+      "sharpe": -2.548508905878108,
+      "closedTrades": 100,
+      "winRatePct": 32
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "aleatorio",
+      "returnPct": 15.893575417415123,
+      "maxDrawdownPct": 23.207624921841415,
+      "sharpe": 1.4007478489278264,
+      "closedTrades": 51,
+      "winRatePct": 49.01960784313725
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "regra-atual-so-compra",
+      "returnPct": 0,
+      "maxDrawdownPct": 0,
+      "sharpe": null,
+      "closedTrades": 0,
+      "winRatePct": null
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "escolhida-na-amostra",
+      "returnPct": -22.294825543364023,
+      "maxDrawdownPct": 24.987184124186147,
+      "sharpe": -1.4279097702275199,
+      "closedTrades": 2,
+      "winRatePct": 0
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual",
+      "returnPct": -32.59615639426319,
+      "maxDrawdownPct": 41.03280436575928,
+      "sharpe": -2.5306961277017,
+      "closedTrades": 17,
+      "winRatePct": 29.411764705882355
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "comprar-e-segurar",
+      "returnPct": 6.172473161855487,
+      "maxDrawdownPct": 27.98290506204098,
+      "sharpe": 0.7220492748592621,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "ultimo-candle",
+      "returnPct": -10.635798407636958,
+      "maxDrawdownPct": 31.358064754034352,
+      "sharpe": -0.6267438635527198,
+      "closedTrades": 96,
+      "winRatePct": 34.375
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "aleatorio",
+      "returnPct": -53.91778860855735,
+      "maxDrawdownPct": 63.336636434015915,
+      "sharpe": -5.809468559030991,
+      "closedTrades": 62,
+      "winRatePct": 30.64516129032258
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual-so-compra",
+      "returnPct": -10.543958775622924,
+      "maxDrawdownPct": 18.534802893679007,
+      "sharpe": -1.0682105896701943,
+      "closedTrades": 8,
+      "winRatePct": 37.5
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "escolhida-na-amostra",
+      "returnPct": -11.51412849114624,
+      "maxDrawdownPct": 34.66087866847615,
+      "sharpe": -0.5887134555339658,
+      "closedTrades": 18,
+      "winRatePct": 66.66666666666666
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual",
+      "returnPct": 42.333985916845016,
+      "maxDrawdownPct": 18.8093963305672,
+      "sharpe": 3.0455996250337054,
+      "closedTrades": 17,
+      "winRatePct": 29.411764705882355
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "comprar-e-segurar",
+      "returnPct": 5.887917239177186,
+      "maxDrawdownPct": 27.73955116364514,
+      "sharpe": 0.6918173692555482,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "ultimo-candle",
+      "returnPct": -25.5620473309038,
+      "maxDrawdownPct": 41.0282251583852,
+      "sharpe": -1.9645838287607116,
+      "closedTrades": 135,
+      "winRatePct": 34.074074074074076
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "aleatorio",
+      "returnPct": -11.97074288923215,
+      "maxDrawdownPct": 32.48388782473498,
+      "sharpe": -0.699224298960276,
+      "closedTrades": 83,
+      "winRatePct": 43.373493975903614
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual-so-compra",
+      "returnPct": 25.730699780068132,
+      "maxDrawdownPct": 12.116780782754102,
+      "sharpe": 2.585895179511214,
+      "closedTrades": 8,
+      "winRatePct": 25
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "escolhida-na-amostra",
+      "returnPct": -1.9063079185482275,
+      "maxDrawdownPct": 31.392228342241495,
+      "sharpe": 0.13841043499405425,
+      "closedTrades": 43,
+      "winRatePct": 53.48837209302325
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "regra-atual",
+      "returnPct": 53.2509084983116,
+      "maxDrawdownPct": 8.37951461876552,
+      "sharpe": 4.378507305312332,
+      "closedTrades": 2,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "comprar-e-segurar",
+      "returnPct": 6.165532877297956,
+      "maxDrawdownPct": 35.28373063648769,
+      "sharpe": 0.6922874910233341,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "ultimo-candle",
+      "returnPct": -13.036621752258071,
+      "maxDrawdownPct": 34.342787158133206,
+      "sharpe": -0.5772244410336312,
+      "closedTrades": 95,
+      "winRatePct": 38.94736842105263
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "aleatorio",
+      "returnPct": -17.85167042434239,
+      "maxDrawdownPct": 23.811691658013384,
+      "sharpe": -0.9236849082543629,
+      "closedTrades": 64,
+      "winRatePct": 45.3125
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "regra-atual-so-compra",
+      "returnPct": 16.592534649968346,
+      "maxDrawdownPct": 8.37951461876552,
+      "sharpe": 2.2042312733024665,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "5m",
+      "split": "out_of_sample",
+      "strategy": "escolhida-na-amostra",
+      "returnPct": -7.523151585959931,
+      "maxDrawdownPct": 25.187583872679664,
+      "sharpe": -0.23143077576682342,
+      "closedTrades": 3,
+      "winRatePct": 66.66666666666666
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual",
+      "returnPct": -38.77555411374306,
+      "maxDrawdownPct": 50.3717263989312,
+      "sharpe": -2.7867040608828098,
+      "closedTrades": 15,
+      "winRatePct": 40
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "comprar-e-segurar",
+      "returnPct": 6.60198543114584,
+      "maxDrawdownPct": 34.73929460914276,
+      "sharpe": 0.7255436292030703,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "ultimo-candle",
+      "returnPct": -28.10911776597337,
+      "maxDrawdownPct": 42.71018414602954,
+      "sharpe": -1.9570430753270776,
+      "closedTrades": 93,
+      "winRatePct": 37.634408602150536
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "aleatorio",
+      "returnPct": -65.6506475447189,
+      "maxDrawdownPct": 70.02245989000205,
+      "sharpe": -6.814476755273982,
+      "closedTrades": 65,
+      "winRatePct": 29.230769230769234
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual-so-compra",
+      "returnPct": -13.525813425204362,
+      "maxDrawdownPct": 21.11339193729526,
+      "sharpe": -1.7084693896876657,
+      "closedTrades": 7,
+      "winRatePct": 57.14285714285714
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "split": "out_of_sample",
+      "strategy": "escolhida-na-amostra",
+      "returnPct": -19.50806929943803,
+      "maxDrawdownPct": 32.4967174802125,
+      "sharpe": -1.0386223727677708,
+      "closedTrades": 27,
+      "winRatePct": 55.55555555555556
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual",
+      "returnPct": 29.1691568146166,
+      "maxDrawdownPct": 17.57672745061197,
+      "sharpe": 2.1469774687310763,
+      "closedTrades": 11,
+      "winRatePct": 36.36363636363637
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "comprar-e-segurar",
+      "returnPct": 6.825645510728627,
+      "maxDrawdownPct": 34.2672608322591,
+      "sharpe": 0.7409726841418766,
+      "closedTrades": 1,
+      "winRatePct": 100
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "ultimo-candle",
+      "returnPct": -27.857530297664606,
+      "maxDrawdownPct": 41.13415865951129,
+      "sharpe": -1.9642911438071886,
+      "closedTrades": 132,
+      "winRatePct": 32.57575757575758
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "aleatorio",
+      "returnPct": -7.26897689797479,
+      "maxDrawdownPct": 22.828229296365258,
+      "sharpe": -0.2419124975989211,
+      "closedTrades": 93,
+      "winRatePct": 49.46236559139785
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "regra-atual-so-compra",
+      "returnPct": 20.007492527653522,
+      "maxDrawdownPct": 21.264109190062058,
+      "sharpe": 1.9178716088123258,
+      "closedTrades": 6,
+      "winRatePct": 33.33333333333333
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "4h",
+      "split": "out_of_sample",
+      "strategy": "escolhida-na-amostra",
+      "returnPct": -13.850991235278762,
+      "maxDrawdownPct": 34.62896404077797,
+      "sharpe": -0.5479677011874855,
+      "closedTrades": 41,
+      "winRatePct": 46.34146341463415
+    }
+  ],
+  "datasets": [
+    {
+      "symbol": "BTCUSDT",
+      "interval": "5m",
+      "normalizedPath": "data/normalized/BTCUSDT_5m_1762905600000_1794502218408_2026-11-12T16-50-32-038Z.jsonl",
+      "normalizedSha256": "40652441d3a1c014be115f972ddd36d3d23a0e8cb2f32362421fc0f59d98d066",
+      "candleCount": 105322,
+      "firstOpenTime": 1762905600000,
+      "lastOpenTime": 1794501900000
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "normalizedPath": "data/normalized/BTCUSDT_1h_1762905600000_1794502209093_2026-11-12T16-50-10-842Z.jsonl",
+      "normalizedSha256": "543797effe54ed2b90acf7617c798f8e64bc57db63792cc5141b5e42dcb27145",
+      "candleCount": 8776,
+      "firstOpenTime": 1762905600000,
+      "lastOpenTime": 1794495600000
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "4h",
+      "normalizedPath": "data/normalized/BTCUSDT_4h_1762905600000_1794502214864_2026-11-12T16-50-15-856Z.jsonl",
+      "normalizedSha256": "6e204cd99db8fb4a03e4d2750ea5478a26facfdba2eae2f17dc181b0af421b88",
+      "candleCount": 2194,
+      "firstOpenTime": 1762905600000,
+      "lastOpenTime": 1794484800000
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "5m",
+      "normalizedPath": "data/normalized/ETHUSDT_5m_1762905600000_1794502232605_2026-11-12T16-50-46-254Z.jsonl",
+      "normalizedSha256": "26b28b2455c65a9f31585a8914a7fc054a671e017ac00c606f6546b616b30e03",
+      "candleCount": 105322,
+      "firstOpenTime": 1762905600000,
+      "lastOpenTime": 1794501900000
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "normalizedPath": "data/normalized/ETHUSDT_1h_1762905600000_1794502211085_2026-11-12T16-50-12-759Z.jsonl",
+      "normalizedSha256": "cdb825a2ff589e1afa90b48fa12672d14da2c02a566c34d35724db28e75a51f2",
+      "candleCount": 8776,
+      "firstOpenTime": 1762905600000,
+      "lastOpenTime": 1794495600000
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "4h",
+      "normalizedPath": "data/normalized/ETHUSDT_4h_1762905600000_1794502216059_2026-11-12T16-50-17-060Z.jsonl",
+      "normalizedSha256": "a7e56799c3b89b5584813d663c8c63244b8e498c2788162dd9a4fe2a4461b847",
+      "candleCount": 2194,
+      "firstOpenTime": 1762905600000,
+      "lastOpenTime": 1794484800000
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "5m",
+      "normalizedPath": "data/normalized/SOLUSDT_5m_1762905600000_1794502246781_2026-11-12T16-51-00-321Z.jsonl",
+      "normalizedSha256": "bf4d791db7b004286d11c7d7a1fdf24ec0e7b6c6b7b8e816591071f62726e6aa",
+      "candleCount": 105322,
+      "firstOpenTime": 1762905600000,
+      "lastOpenTime": 1794501900000
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "normalizedPath": "data/normalized/SOLUSDT_1h_1762905600000_1794502212977_2026-11-12T16-50-14-627Z.jsonl",
+      "normalizedSha256": "9207dd9a5118d1edfa143c8056411e1c64466de8096f6f202c1a6e051e078dd2",
+      "candleCount": 8776,
+      "firstOpenTime": 1762905600000,
+      "lastOpenTime": 1794495600000
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "4h",
+      "normalizedPath": "data/normalized/SOLUSDT_4h_1762905600000_1794502217272_2026-11-12T16-50-18-190Z.jsonl",
+      "normalizedSha256": "cbcf236f2d99d06286a314ca107ef40a6632ddc73db3745575b969f7f91b123b",
+      "candleCount": 2194,
+      "firstOpenTime": 1762905600000,
+      "lastOpenTime": 1794484800000
+    }
+  ],
+  "sampling": {
+    "context": 256,
+    "sampleCount": 4,
+    "specs": [
+      {
+        "interval": "5m",
+        "horizon": 12,
+        "stride": 144
+      },
+      {
+        "interval": "1h",
+        "horizon": 6,
+        "stride": 12
+      },
+      {
+        "interval": "4h",
+        "horizon": 6,
+        "stride": 2
+      }
+    ]
+  },
+  "limitations": [
+    "Isto não é conselho de investimento e nenhuma ordem real foi enviada.",
+    "O modelo não é consultado em todo candle. O intervalo entre decisões está na tabela de amostragem e existe para caber em CPU.",
+    "Sharpe anualizado com retornos por candle e 365,25 dias. Ele fica instável quando há poucos trades.",
+    "Venda a descoberto é simulada.",
+    "Nove séries e 108 combinações de treino aumentam a chance de um acaso parecer um achado. Por isso só um teste principal pode habilitar uma estratégia nova.",
+    "O alfa de Bonferroni para as nove direções é 0.05/9. Ele é um aviso, não o teste que decide a promoção."
+  ]
+}

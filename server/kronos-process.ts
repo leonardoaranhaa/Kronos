@@ -16,6 +16,7 @@ export interface KronosInferenceRequest {
   interval: string;
   horizon: number;
   candles: CanonicalCandle[];
+  sampleCount?: number;
 }
 
 export function toWorkerCandles(candles: readonly CanonicalCandle[]) {
@@ -75,6 +76,7 @@ export class KronosProcess extends EventEmitter {
       timestamp: request.timestamp,
       interval: request.interval,
       horizon: request.horizon,
+      sampleCount: request.sampleCount ?? 1,
       candles: toWorkerCandles(request.candles)
     };
     return this.child.stdin.write(JSON.stringify(payload) + '\n');
