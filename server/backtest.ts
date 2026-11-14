@@ -407,3 +407,21 @@ export async function runWalkForward(
     }
   };
 }
+
+/**
+ * Same fill, fee and breaker path as the Kronos walk-forward.
+ * The Aranha research backtest uses this so its costs are not a second implementation.
+ */
+export function simulateResearchSchedule(
+  candles: readonly CanonicalCandle[],
+  options: {
+    label: string;
+    costs: CostConfig;
+    startingEquity: number;
+    intervalMs: number;
+    breaker: CircuitBreakerConfig | null;
+    schedule: Map<number, SignalAction>;
+  }
+): TradingMetrics {
+  return simulate(candles, options);
+}

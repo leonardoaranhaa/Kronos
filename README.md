@@ -107,6 +107,22 @@ O modelo não é chamado em todo candle de 5 minutos. O padrão é uma decisão 
 
 As baselines usam as mesmas taxas. Só a estratégia do modelo usa a trava diária. Comprar e segurar não é interrompida por ela, senão deixaria de ser comprar e segurar.
 
+## Aranha Digital
+
+A Aranha lê o gráfico. Ela compara as últimas 48 velas de 5 minutos com trechos antigos do mesmo arquivo, monta 1 hora e 4 horas a partir desses candles, e marca suporte, resistência, tendência, rompimento, candles clássicos e volume anormal. Ao lado de cada padrão aparece o que veio depois, com a quantidade de casos. Isso funciona sem chave.
+
+A web é apoio. Com `ANTHROPIC_API_KEY` vazio, o painel diz **LLM desligado** e usa uma lista fixa de palavras. Com a chave, o Claude (Anthropic) pode resumir as notícias e usar a busca da própria Anthropic. Um endpoint compatível com OpenAI fica como segunda opção. Não há chave no código.
+
+O filtro que segura compra ou venda quando os trechos e as notícias discordam nasce desligado. A estratégia padrão do Kronos não muda.
+
+O backtest da Aranha mede o gráfico, com as mesmas taxas do outro backtest. A web não entra nessa conta: notícia antiga, no instante certo, não está disponível. As coletas de agora em diante ficam em `data/aranha/snapshots`.
+
+```bash
+npm run backtest:aranha
+```
+
+O resultado vai para `reports/aranha-latest.md`. A aba Aranha do painel mostra o gráfico, os trechos, as notícias e esse relatório.
+
 ## Layout
 
 ```text
