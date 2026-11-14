@@ -70,6 +70,28 @@ npm run backtest
 
 Ele grava `reports/backtest-latest.json` e `reports/backtest-latest.md`. O painel, na aba Backtest, lê o JSON. O relatório vale com o número que sair, inclusive se a estratégia perder para comprar e segurar.
 
+A validação offline, com walk-forward, purga, Sharpe deflacionado e PBO, é outro comando. Ela também não envia ordem:
+
+```bash
+npm run validate
+```
+
+Isso mede a Aranha e o crawler e deixa o Kronos inconclusivo se o modelo não estiver na máquina. O veredito fica em `reports/validation-latest.md` e na aba Pesquisa. A regra exata está no topo desse relatório.
+
+Para medir o Kronos num computador que já tenha o worker Python e os pesos (`bash scripts/setup-kronos.sh`), um comando por estratégia. Ele baixa BTCUSDT de 1 hora, grava o cache em `data/research-cache/` e troca só a linha correspondente do relatório. `KRONOS_VALIDATION_DAYS` muda a janela; o padrão é 120.
+
+```bash
+npm run validate -- --strategy kronos-m2
+npm run validate -- --strategy kronos-m3
+npm run validate -- --strategy kronos-rule
+```
+
+`KRONOS_VALIDATION_END_MS` (timestamp em milissegundos) congela o fim da janela, para que os três comandos leiam o mesmo snapshot.
+
+`kronos-m2` deixa o tokenizer em treino, como no estudo antigo. `kronos-m3` e `kronos-rule` exigem o patch de RoPE já aplicado no checkout. `kronos-rule` é a regra ao vivo, com o bloqueio de RSI.
+
+Cada tentativa medida grava o seu Sharpe por período em `reports/trial-log.jsonl`. O Sharpe deflacionado usa o desvio-padrão desses Sharpes. A grade de 108 combinações do M2 entra na contagem, mas o arquivo antigo não guardou o Sharpe de cada combinação, então ela não entra na dispersão. O erro-padrão do Sharpe só substitui essa dispersão quando há menos de dois Sharpes gravados.
+
 ## Regras do sinal
 
 Tudo é calculado só com candles já fechados.

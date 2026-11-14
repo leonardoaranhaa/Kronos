@@ -15,8 +15,9 @@ import { getHealthSnapshot } from './health';
 import { computeIndicators } from './indicators';
 import { decideSignal, ResearchSignal } from './signals';
 import { researchAction } from './research-eval';
-import { loadPromotion, selectPaperStrategy } from './paper-strategy';
-import { SAMPLE_COUNT } from './research-protocol';
+import { loadPromotion, paperDecisionDue, selectPaperStrategy } from './paper-strategy';
+import { SAMPLE_COUNT, researchPaperStride } from './research-protocol';
+import { displayedForecastProbability } from './calibration';
 import { sampleStd } from './research-stats';
 import { readResearchConfig } from './research-config';
 import { describeHistory, createHistoryWindow, preloadHistory, acceptCandle } from './history-window';
@@ -97,7 +98,7 @@ const session = new PaperSession(
 let latestIndicators: TechnicalIndicators | null = null;
 let latestCandle: CanonicalCandle | null = null;
 let latestForecast: number[] = [];
-let latestDistribution: { p10?: number[]; p90?: number[]; pUp?: number } | null = null;
+let latestDistribution: { p10?: number[]; p90?: number[]; pUp?: number; probabilityNote?: string } | null = null;
 let startupInferenceRequested = false;
 const decisions = new Map<number, { close: number; indicators: TechnicalIndicators }>();
 let ingestQueue = Promise.resolve();
@@ -143,8 +144,11 @@ function snapshotPayload() {
     candle: latestCandle,
     indicators: latestIndicators,
     forecast: latestForecast,
-    quantileBand: latestDistribution ? { p10: latestDistribution.p10, p90: latestDistribution.p90 } : undefined,
+    quantileBand: latestDistribution?.p10 || latestDistribution?.p90
+      ? { p10: latestDistribution.p10, p90: latestDistribution.p90 }
+      : undefined,
     pUp: latestDistribution?.pUp,
+    probabilityNote: latestDistribution?.probabilityNote,
     paper: session.getSnapshot(),
     history: describeHistory(history)
   };
@@ -226,6 +230,7 @@ function rememberDecision(candle: CanonicalCandle, indicators: TechnicalIndicato
 }
 
 function requestForecast(candle: CanonicalCandle, indicators: TechnicalIndicators): void {
+  if (!paperDecisionDue(paperChoice, history.acceptedCount, researchPaperStride())) return;
   rememberDecision(candle, indicators);
   if (bridge.processTick(candle, history.retained)) startupInferenceRequested = true;
 }
@@ -240,11 +245,18 @@ bridge.on('model-error', data => broadcast({ type: 'KRONOS_MODEL_ERROR', payload
 bridge.on('prediction', prediction => {
   const predicted = Array.isArray(prediction.predictions) ? prediction.predictions as number[] : [];
   latestForecast = predicted;
-  const band = prediction.quantileBand as { p10?: number[]; p90?: number[] } | undefined;
+  const displayed = displayedForecastProbability(prediction as {
+    sampleCount?: unknown;
+    probabilityAvailable?: unknown;
+    probabilityNote?: unknown;
+    pUp?: unknown;
+    quantileBand?: { p10?: number[]; p90?: number[] } | null;
+  });
   latestDistribution = {
-    p10: band?.p10,
-    p90: band?.p90,
-    pUp: typeof prediction.pUp === 'number' ? prediction.pUp : undefined
+    p10: displayed.quantileBand?.p10,
+    p90: displayed.quantileBand?.p90,
+    pUp: displayed.pUp,
+    probabilityNote: displayed.probabilityNote ?? undefined
   };
   const decisionOpenTime = Number(prediction.timestamp);
   const decision = decisions.get(decisionOpenTime);
@@ -261,7 +273,8 @@ bridge.on('prediction', prediction => {
         dispersionBps,
         atr: decision.indicators.atr14,
         ema9: decision.indicators.ema9,
-        ema20: decision.indicators.ema20
+        ema20: decision.indicators.ema20,
+        rsi14: decision.indicators.rsi14
       }, paperChoice.params);
       signal = {
         action,
@@ -296,7 +309,15 @@ bridge.on('prediction', prediction => {
   }
   broadcast({
     type: 'KRONOS_AI_PREDICTION',
-    payload: { ...prediction, predictedCloses: predicted, signal, aranha: aranha.view() }
+    payload: {
+      ...prediction,
+      predictedCloses: predicted,
+      pUp: displayed.pUp,
+      probabilityNote: displayed.probabilityNote,
+      quantileBand: displayed.quantileBand,
+      signal,
+      aranha: aranha.view()
+    }
   });
   broadcast({ type: 'PAPER_STATE', payload: snapshotPayload() });
 });
@@ -475,6 +496,15 @@ app.get('/api/research-m3', (_req, res) => {
   const path = 'reports/research-m3.json';
   if (!existsSync(path)) {
     res.status(404).json({ error: 'Ainda não há a comparação do patch. Rode npm run research:m3.' });
+    return;
+  }
+  res.type('json').send(readFileSync(path, 'utf8'));
+});
+
+app.get('/api/validation', (_req, res) => {
+  const path = 'reports/validation-latest.json';
+  if (!existsSync(path)) {
+    res.status(404).json({ error: 'Ainda não há validação. Rode npm run validate.' });
     return;
   }
   res.type('json').send(readFileSync(path, 'utf8'));

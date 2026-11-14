@@ -43,8 +43,22 @@ def denormalize_close_paths(samples, frame, horizon):
     return future * (scale[3] + 1e-5) + center[3]
 
 
-def summarize_close_paths(paths, last_close):
-    """paths: (samples, horizon) of denormalized closes."""
+def summarize_close_paths(paths, last_close, sample_count):
+    """paths: (samples, horizon) of denormalized closes.
+
+    A single path is the mean forecast, not a probability. P(alta) and the
+    quantile band stay empty until at least two paths were sampled.
+    """
+    enough = int(sample_count) >= 2 and paths is not None and len(paths) >= 2
+    if not enough:
+        return {
+            "samplePaths": [],
+            "sampleEnds": [],
+            "quantileBand": None,
+            "pUp": None,
+            "probabilityAvailable": False,
+            "probabilityNote": "sem amostras suficientes",
+        }
     band = {
         "p10": [float(value) for value in np.quantile(paths, 0.10, axis=0)],
         "p50": [float(value) for value in np.quantile(paths, 0.50, axis=0)],
@@ -56,6 +70,8 @@ def summarize_close_paths(paths, last_close):
         "sampleEnds": [float(value) for value in ends],
         "quantileBand": band,
         "pUp": float(np.mean(ends > last_close)),
+        "probabilityAvailable": True,
+        "probabilityNote": None,
     }
 
 
@@ -178,10 +194,8 @@ class KronosWorker:
                 kronos_module.np.mean = original_mean
 
         mean_closes = [float(value) for value in prediction["close"].tolist()]
-        paths = denormalize_close_paths(captured.get("samples"), frame, horizon)
-        if paths is None:
-            paths = np.asarray(mean_closes, dtype=np.float64)[None, :]
-        distribution = summarize_close_paths(paths, float(frame["close"].iloc[-1]))
+        paths = denormalize_close_paths(captured.get("samples"), frame, horizon) if sample_count > 1 else None
+        distribution = summarize_close_paths(paths, float(frame["close"].iloc[-1]), sample_count)
 
         return {
             "type": "PREDICTION_RESULT",
@@ -199,6 +213,8 @@ class KronosWorker:
             "samplePaths": distribution["samplePaths"],
             "quantileBand": distribution["quantileBand"],
             "pUp": distribution["pUp"],
+            "probabilityAvailable": distribution["probabilityAvailable"],
+            "probabilityNote": distribution["probabilityNote"],
             "forecast": prediction.reset_index(drop=True).to_dict(orient="records")
         }
 

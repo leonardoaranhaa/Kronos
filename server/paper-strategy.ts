@@ -32,6 +32,17 @@ export function selectPaperStrategy(
   return { id: 'pesquisa', reason: 'Usando a configuração promovida pela pesquisa, só neste paper.', params: report.tunedParams };
 }
 
+/**
+ * The promoted BTCUSDT 1h study decides every `stride` candles, not on every candle.
+ * The default rule keeps the old one-candle cadence.
+ */
+export function paperDecisionDue(choice: { id: string }, acceptedCount: number, stride: number): boolean {
+  if (choice.id !== 'pesquisa') return true;
+  if (!Number.isInteger(stride) || stride < 1) throw new Error('paper stride must be a positive integer');
+  if (!Number.isInteger(acceptedCount) || acceptedCount < 1) return false;
+  return acceptedCount % stride === 0;
+}
+
 export function loadPromotion(filePath: string): PromotionFile | null {
   if (!existsSync(filePath)) return null;
   try {

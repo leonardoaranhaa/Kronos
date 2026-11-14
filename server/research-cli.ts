@@ -82,11 +82,11 @@ function pickManifest(symbol: string, interval: string, intervalMs: number): Man
   return matches[0];
 }
 
-function cacheFile(symbol: string, spec: SeriesSpec, commit: string): string {
+function cacheFile(symbol: string, spec: SeriesSpec, commit: string, datasetSha256: string): string {
   return join(
     'data',
     'research-cache',
-    `${symbol}_${spec.interval}_c${spec.context}_h${spec.horizon}_n${SAMPLE_COUNT}_${commit.slice(0, 12)}.jsonl`
+    `${symbol}_${spec.interval}_c${spec.context}_h${spec.horizon}_n${SAMPLE_COUNT}_${commit.slice(0, 12)}_${datasetSha256.slice(0, 12)}.jsonl`
   );
 }
 
@@ -131,8 +131,8 @@ async function main(): Promise<void> {
       for (const spec of SERIES_SPECS) {
         const manifest = pickManifest(symbol, spec.interval, spec.intervalMs);
         const candles = loadCandles(manifest);
-        const file = cacheFile(symbol, spec, ready.upstreamCommit);
-        const cache = loadForecastCache(file);
+        const file = cacheFile(symbol, spec, ready.upstreamCommit, manifest.normalizedSha256);
+        const cache = loadForecastCache(file, manifest.normalizedSha256);
         const needed = decisionIndexes(candles.length, spec.context, spec.horizon, spec.stride)
           .map(index => ({ candle: candles[index], index }));
         const missing = needed.filter(item => !cache.has(item.candle.openTime));
@@ -159,7 +159,12 @@ async function main(): Promise<void> {
           if (!(official > 0) || Math.abs(sampleMean - official) / official > 0.02) {
             throw new Error(`Sample mean ${sampleMean} disagrees with official close ${official}`);
           }
-          const row = { openTime: item.candle.openTime, meanCloses, sampleEnds };
+          const row = {
+            openTime: item.candle.openTime,
+            meanCloses,
+            sampleEnds,
+            datasetSha256: manifest.normalizedSha256
+          };
           cache.set(row.openTime, row);
           fresh.push(row);
           if (fresh.length >= 25) {
@@ -211,7 +216,7 @@ async function main(): Promise<void> {
   for (const series of loaded) {
     for (const split of ['in_sample', 'out_of_sample'] as const) {
       const subset = series.records.filter(record => record.split === split);
-      const direction = directionStats(subset);
+      const direction = directionStats(subset, { horizon: series.spec.horizon, stride: series.spec.stride });
       const absolute = subset.map(record => Math.abs(record.meanEnd - record.actualEnd));
       directional.push({
         symbol: series.symbol,

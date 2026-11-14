@@ -1,6 +1,7 @@
 import { loadEnvFile } from './load-env';
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { selectNormalizedSnapshot } from './validation/snapshot';
 import { CanonicalCandle } from '../shared/types';
 import { auditCandleSeries, intervalToMilliseconds } from './candle-validation';
 import { sha256Content } from './binance-import-core';
@@ -12,14 +13,12 @@ import { BacktestReport, limitationLines, renderBacktestMarkdown, signalRuleLine
 loadEnvFile();
 
 function latestNormalizedPath(): string {
-  const configured = process.env.HISTORICAL_DATA_PATH;
-  if (configured) return configured;
-  const dir = join('data', 'normalized');
-  const files = readdirSync(dir)
-    .filter(name => name.endsWith('.jsonl'))
-    .sort();
-  if (files.length === 0) throw new Error('No normalized snapshot found. Run npm run import:binance first.');
-  return join(dir, files[files.length - 1]);
+  return selectNormalizedSnapshot({
+    dir: join('data', 'normalized'),
+    symbol: (process.env.SYMBOL || 'BTCUSDT').toUpperCase(),
+    interval: process.env.TIMEFRAME || '5m',
+    configuredPath: process.env.HISTORICAL_DATA_PATH
+  });
 }
 
 async function main(): Promise<void> {

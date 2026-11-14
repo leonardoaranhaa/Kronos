@@ -13,13 +13,15 @@ import {
   MIN_IN_SAMPLE_TRADES,
   MIN_OOS_TRADES
 } from './research-protocol';
-import { annualizedSharpe, binomialSurvivalHalf, maxDrawdownPct, sampleStd } from './research-stats';
+import { annualizedSharpe, maxDrawdownPct, sampleStd } from './research-stats';
+import { directionTest } from './validation/dependence';
 import { Account, CostConfig, PositionTarget, createAccount, markToMarket, rebalance } from './trading-math';
 
 export interface CachedForecast {
   openTime: number;
   meanCloses: number[];
   sampleEnds: number[];
+  datasetSha256?: string;
 }
 
 export interface StudyRecord {
@@ -60,6 +62,10 @@ export interface DirectionStats {
   compared: number;
   accuracy: number | null;
   pValue: number | null;
+  independentHits?: number;
+  independentCompared?: number;
+  pValueMethod?: string;
+  blockBootstrapPValue?: number | null;
 }
 
 export interface TunedChoice {
@@ -134,18 +140,36 @@ export function buildStudyRecords(
   return records;
 }
 
-export function directionStats(records: readonly StudyRecord[]): DirectionStats {
-  const compared = records.filter(record => record.directionHit !== null);
-  const hits = compared.filter(record => record.directionHit).length;
+export function directionStats(
+  records: readonly { index: number; directionHit: boolean | null }[],
+  overlap: { horizon: number; stride: number } = { horizon: 1, stride: 1 }
+): DirectionStats {
+  const test = directionTest(
+    records.map(record => ({ index: record.index, hit: record.directionHit })),
+    overlap
+  );
   return {
-    hits,
-    compared: compared.length,
-    accuracy: compared.length > 0 ? hits / compared.length : null,
-    pValue: compared.length > 0 ? binomialSurvivalHalf(hits, compared.length) : null
+    hits: test.hits,
+    compared: test.compared,
+    accuracy: test.accuracy,
+    pValue: test.pValue,
+    independentHits: test.independentHits,
+    independentCompared: test.independentCompared,
+    pValueMethod: test.method,
+    blockBootstrapPValue: test.blockBootstrapPValue
   };
 }
 
-export type ResearchSignalInput = Pick<StudyRecord, 'close' | 'predictedReturnBps' | 'dispersionBps' | 'atr' | 'ema9' | 'ema20'>;
+export type ResearchSignalInput = Pick<StudyRecord, 'close' | 'predictedReturnBps' | 'dispersionBps' | 'atr' | 'ema9' | 'ema20'> & {
+  rsi14?: number | null;
+};
+
+function blockedByRsi(record: ResearchSignalInput, params: ResearchParams, side: 'BUY' | 'SELL'): boolean {
+  if (record.rsi14 == null) return false;
+  if (side === 'BUY' && params.rsiBuyMax != null && record.rsi14 >= params.rsiBuyMax) return true;
+  if (side === 'SELL' && params.rsiSellMin != null && record.rsi14 <= params.rsiSellMin) return true;
+  return false;
+}
 
 /** Research signal. SELL means "down"; a long-only simulator turns that into an exit. */
 export function researchAction(record: ResearchSignalInput, params: ResearchParams): 'BUY' | 'SELL' | 'HOLD' {
@@ -161,12 +185,12 @@ export function researchAction(record: ResearchSignalInput, params: ResearchPara
   const down = record.predictedReturnBps < 0;
   if (params.trendFilter) {
     if (record.ema9 === null || record.ema20 === null) return 'HOLD';
-    if (up && record.ema9 > record.ema20) return 'BUY';
-    if (down && record.ema9 < record.ema20) return 'SELL';
+    if (up && record.ema9 > record.ema20) return blockedByRsi(record, params, 'BUY') ? 'HOLD' : 'BUY';
+    if (down && record.ema9 < record.ema20) return blockedByRsi(record, params, 'SELL') ? 'HOLD' : 'SELL';
     return 'HOLD';
   }
-  if (up) return 'BUY';
-  if (down) return 'SELL';
+  if (up) return blockedByRsi(record, params, 'BUY') ? 'HOLD' : 'BUY';
+  if (down) return blockedByRsi(record, params, 'SELL') ? 'HOLD' : 'SELL';
   return 'HOLD';
 }
 

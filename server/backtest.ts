@@ -8,7 +8,7 @@ import {
   noteEquity,
   noteHeartbeat
 } from './circuit_breaker';
-import { resolveTarget } from './execution-policy';
+import { rebalanceRespectingCooldown } from './execution-policy';
 import { computeIndicators } from './indicators';
 import { SignalConfig, SignalAction, decideSignal } from './signals';
 import { Account, CostConfig, createAccount, markToMarket, rebalance } from './trading-math';
@@ -198,14 +198,12 @@ function simulate(candles: readonly CanonicalCandle[], options: SimulationOption
         cooldownEvents += 1;
         lastCooldownUntil = breaker.cooldownUntil;
       }
-      const target = resolveTarget(account.qty, action, decision);
-      if (!target) return;
-      const changed = rebalance(account, target, price, options.costs);
+      const changed = rebalanceRespectingCooldown(account, breaker, breakerConfig, action, price, now, options.costs);
       account = changed.account;
-      for (const fill of changed.fills) {
-        if (fill.purpose === 'close' && fill.realizedPnl !== null) {
-          breaker = noteClosedTrade(breaker, breakerConfig, fill.realizedPnl, now);
-        }
+      breaker = changed.breaker;
+      if (breaker.cooldownUntil > now && breaker.cooldownUntil !== lastCooldownUntil) {
+        cooldownEvents += 1;
+        lastCooldownUntil = breaker.cooldownUntil;
       }
     } else {
       const target = action === 'BUY' ? 'long' : action === 'SELL' ? 'short' : 'flat';

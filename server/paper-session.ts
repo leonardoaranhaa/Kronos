@@ -12,7 +12,7 @@ import {
   noteEquity,
   noteHeartbeat
 } from './circuit_breaker';
-import { resolveTarget } from './execution-policy';
+import { rebalanceRespectingCooldown } from './execution-policy';
 import { ResearchSignal } from './signals';
 import { Account, CostConfig, Fill, createAccount, markToMarket, positionSide, rebalance } from './trading-math';
 
@@ -120,36 +120,40 @@ export class PaperSession {
     this.breaker = noteHeartbeat(this.breaker, now);
 
     if (this.pending && candle.openTime > this.pending.decisionOpenTime) {
-      const decision = evaluateBreaker(this.breaker, this.breakerConfig, now);
-      const target = resolveTarget(this.account.qty, this.pending.signal.action, decision);
-      if (target) {
-        const changed = rebalance(this.account, target, candle.open, this.costs);
-        this.account = changed.account;
-        fills.push(...changed.fills);
-        for (const fill of changed.fills) {
-          if (fill.purpose === 'close' && fill.realizedPnl !== null) {
-            this.breaker = noteClosedTrade(this.breaker, this.breakerConfig, fill.realizedPnl, now);
-          }
-          this.record({
-            at: new Date(candle.openTime).toISOString(),
-            type: 'fill',
-            purpose: fill.purpose,
-            side: fill.side,
-            qty: fill.qty,
-            price: fill.price,
-            fillPrice: fill.fillPrice,
-            fee: fill.fee,
-            realizedPnl: fill.realizedPnl,
-            simulated: true,
-            reason: fill.purpose === 'open' ? 'Abertura simulada' : 'Fechamento simulado'
-          });
-        }
-      } else if (this.pending.signal.action !== 'HOLD' && (!decision.canOpen || decision.mustFlatten)) {
+      const before = evaluateBreaker(this.breaker, this.breakerConfig, now);
+      const changed = rebalanceRespectingCooldown(
+        this.account,
+        this.breaker,
+        this.breakerConfig,
+        this.pending.signal.action,
+        candle.open,
+        now,
+        this.costs
+      );
+      this.account = changed.account;
+      this.breaker = changed.breaker;
+      fills.push(...changed.fills);
+      for (const fill of changed.fills) {
+        this.record({
+          at: new Date(candle.openTime).toISOString(),
+          type: 'fill',
+          purpose: fill.purpose,
+          side: fill.side,
+          qty: fill.qty,
+          price: fill.price,
+          fillPrice: fill.fillPrice,
+          fee: fill.fee,
+          realizedPnl: fill.realizedPnl,
+          simulated: true,
+          reason: fill.purpose === 'open' ? 'Abertura simulada' : 'Fechamento simulado'
+        });
+      }
+      if (changed.fills.length === 0 && this.pending.signal.action !== 'HOLD' && (!before.canOpen || before.mustFlatten)) {
         this.record({
           at: new Date(candle.openTime).toISOString(),
           type: 'signal_blocked',
           action: this.pending.signal.action,
-          reason: decision.reason
+          reason: before.reason
         });
       }
       this.pending = null;
