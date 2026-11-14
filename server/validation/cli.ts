@@ -24,6 +24,7 @@ import {
 } from './report';
 import { aranhaStrategies, crawlerStrategies } from './series';
 import { readTrials, trialCount, trialId, upsertTrial, TrialEntry } from './trials';
+import { runFuturesValidation } from '../futures/validate';
 
 loadEnvFile();
 
@@ -127,7 +128,19 @@ async function runKronosCommand(id: KronosStrategyId): Promise<void> {
   console.log(`${row.name}: ${row.verdict}`);
 }
 
+function strategyArgument(argv: readonly string[]): string | null {
+  const equals = argv.find(arg => arg.startsWith('--strategy='));
+  const index = argv.indexOf('--strategy');
+  if (equals) return equals.slice('--strategy='.length);
+  if (index >= 0) return argv[index + 1] ?? null;
+  return null;
+}
+
 async function main(): Promise<void> {
+  if (strategyArgument(process.argv) === 'futuros') {
+    runFuturesValidation();
+    return;
+  }
   const selected = parseStrategyFlag(process.argv);
   if (selected) {
     await runKronosCommand(selected);

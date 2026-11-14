@@ -29,6 +29,9 @@ import { toCanonical } from './crawler/score';
 import { isPublicInterval, parsePublicKlines } from './market/public-klines';
 import { readAranhaConfig } from './aranha/config';
 import { sendTeia } from './teia/handler';
+import { FuturesLiveCollector, readFuturesLiveConfig } from './futures/live';
+import { futuresRoot } from './futures/paths';
+import { overlayPayload } from './futures/overlay';
 
 loadEnvFile();
 
@@ -60,6 +63,7 @@ const teiaPaths = {
   crawlerDir: crawlerConfig.snapshotDir,
   aranhaDir: readAranhaConfig().snapshotDir
 };
+const futuresLive = new FuturesLiveCollector(readFuturesLiveConfig());
 const crawler = new CrawlerRuntime(crawlerConfig, {
   forecaster: {
     ready: () => bridge.getStatus() === 'ready',
@@ -482,6 +486,25 @@ app.get('/api/research-m3', (_req, res) => {
   res.type('json').send(readFileSync(path, 'utf8'));
 });
 
+app.get('/api/futures/overlay', (req, res) => {
+  const symbol = String(req.query.symbol || '').toUpperCase();
+  const startRaw = req.query.startTime === undefined ? null : Number(req.query.startTime);
+  const endRaw = req.query.endTime === undefined ? null : Number(req.query.endTime);
+  if (!/^[A-Z0-9]{5,20}$/.test(symbol) || (startRaw !== null && !Number.isFinite(startRaw)) || (endRaw !== null && !Number.isFinite(endRaw))) {
+    res.status(400).json({ error: 'Pedido inválido.', symbol, funding: [], openInterest: [], note: '' });
+    return;
+  }
+  res.json(overlayPayload(futuresRoot(), symbol, startRaw, endRaw));
+});
+
+app.get('/api/futures/status', (_req, res) => {
+  res.json({
+    live: futuresLive.status(),
+    root: futuresRoot(),
+    note: 'Coleta pública. Nenhuma ordem é enviada e nenhuma chave é usada.'
+  });
+});
+
 app.get('/api/validation', (_req, res) => {
   const path = 'reports/validation-latest.json';
   if (!existsSync(path)) {
@@ -519,6 +542,7 @@ async function bootstrap() {
   await catchUpHistory();
   aranha.startBackground();
   crawler.start();
+  futuresLive.start();
   bridge.start();
   feed.start();
   httpServer.listen(PORT, () => {
@@ -532,6 +556,7 @@ function shutdown() {
   bridge.stop();
   aranha.stop();
   crawler.stop();
+  futuresLive.stop();
   httpServer.close();
 }
 process.on('SIGINT', shutdown);
