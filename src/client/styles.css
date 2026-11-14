@@ -205,6 +205,34 @@ a, .linkish { color: #93c5fd; background: none; border: 0; padding: 0; cursor: p
 .subpane { position: relative; margin-top: 4px; }
 .subpane span { color: #94a3b8; font-size: 12px; }
 .pro-options label { display: flex; gap: 4px; align-items: center; color: #cbd5e1; font-size: 0.85rem; }
+.teia-panel {
+  position: absolute;
+  z-index: 6;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: min(340px, calc(100% - 16px));
+  overflow: auto;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 8px 10px;
+  pointer-events: auto;
+  font-size: 13px;
+}
+.teia-head, .teia-windows { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.teia-head { justify-content: space-between; }
+.teia-honest {
+  margin: 6px 0;
+  color: #fde68a;
+  background: #422006;
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+.teia-empty { color: #e2e8f0; }
+.teia-web { width: 100%; height: 118px; display: block; }
+.teia-list { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 4px; }
+.teia-list li { border-top: 1px solid #1e293b; padding-top: 4px; }
 .depth, .equity-line { width: 100%; background: #020617; border-radius: 8px; }
 .depth { height: 80px; }
 
