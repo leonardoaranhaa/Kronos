@@ -66,6 +66,39 @@ test('a 2% adverse move flattens the paper position and blocks a new entry', () 
   assert.equal(blocked.fills.some(fill => fill.purpose === 'open'), false);
 });
 
+test('a losing flip arms the cooldown before the opposite side opens', () => {
+  const strict = { ...breaker, maxConsecutiveLosses: 1 };
+  const start = candleAt(0, 100).closeTime;
+  const session = new PaperSession(costs, strict, 10_000, undefined, undefined, start);
+  session.queueSignal(signal, candleAt(0, 100).openTime, start);
+  const entry = candleAt(1, 100, 100);
+  session.onCandle(entry, entry.closeTime);
+  assert.equal(session.getSnapshot(entry.closeTime).side, 'long');
+
+  const sell = { ...signal, action: 'SELL' as const };
+  session.queueSignal(sell, entry.openTime, entry.closeTime);
+  const drop = candleAt(2, 90, 90);
+  const step = session.onCandle(drop, drop.openTime);
+  assert.equal(step.fills.some(fill => fill.purpose === 'close'), true);
+  assert.equal(step.fills.some(fill => fill.purpose === 'open'), false);
+  assert.equal(step.snapshot.side, 'flat');
+  assert.equal(step.snapshot.breaker.inCooldown, true);
+});
+
+test('a winning flip still opens the opposite side', () => {
+  const strict = { ...breaker, maxConsecutiveLosses: 1 };
+  const start = candleAt(0, 100).closeTime;
+  const session = new PaperSession(costs, strict, 10_000, undefined, undefined, start);
+  session.queueSignal(signal, candleAt(0, 100).openTime, start);
+  const entry = candleAt(1, 100, 100);
+  session.onCandle(entry, entry.closeTime);
+  session.queueSignal({ ...signal, action: 'SELL' }, entry.openTime, entry.closeTime);
+  const rise = candleAt(2, 110, 110);
+  const step = session.onCandle(rise, rise.openTime);
+  assert.equal(step.snapshot.side, 'short');
+  assert.equal(step.snapshot.breaker.inCooldown, false);
+});
+
 test('paper state reloads from the local snapshot', () => {
   const dir = mkdtempSync(join(tmpdir(), 'kronos-state-'));
   const statePath = join(dir, 'state.json');

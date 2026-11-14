@@ -1,6 +1,7 @@
 import { loadEnvFile } from '../load-env';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { selectNormalizedSnapshot } from '../validation/snapshot';
 import { CanonicalCandle } from '../../shared/types';
 import { sha256Content } from '../binance-import-core';
 import { auditCandleSeries, intervalToMilliseconds } from '../candle-validation';
@@ -12,19 +13,19 @@ import { AranhaReport, aranhaLimitationLines, aranhaRuleLines, renderAranhaMarkd
 
 loadEnvFile();
 
-function latestNormalizedPath(): string {
-  const configured = process.env.HISTORICAL_DATA_PATH;
-  if (configured) return configured;
-  const dir = join('data', 'normalized');
-  const files = readdirSync(dir).filter(name => name.endsWith('.jsonl')).sort();
-  if (files.length === 0) throw new Error('No normalized snapshot found. Run npm run import:binance first.');
-  return join(dir, files[files.length - 1]);
+function latestNormalizedPath(symbol: string): string {
+  return selectNormalizedSnapshot({
+    dir: join('data', 'normalized'),
+    symbol,
+    interval: process.env.TIMEFRAME || '5m',
+    configuredPath: process.env.HISTORICAL_DATA_PATH
+  });
 }
 
 function main(): void {
   const research = readResearchConfig();
   const aranha = readAranhaConfig();
-  const normalizedPath = latestNormalizedPath();
+  const normalizedPath = latestNormalizedPath(aranha.symbol);
   const content = readFileSync(normalizedPath, 'utf8');
   const candles = content.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line) as CanonicalCandle);
   const quality = auditCandleSeries(candles);

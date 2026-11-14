@@ -156,6 +156,7 @@ export function emptyLimitations(): string[] {
     'Sharpe anualizado com retornos por candle e 365,25 dias. Ele fica instável quando há poucos trades.',
     'Venda a descoberto é simulada.',
     'Nove séries e 108 combinações de treino aumentam a chance de um acaso parecer um achado. Por isso só um teste principal pode habilitar uma estratégia nova.',
+    'O p-valor de direção usa só decisões cujo horizonte não se sobrepõe. Quando o horizonte passa do passo entre decisões, um bootstrap em blocos também entra, e o p-valor publicado é o mais alto dos dois.',
     `O alfa de Bonferroni para as nove direções é ${PRIMARY_ALPHA}/9. Ele é um aviso, não o teste que decide a promoção.`
   ];
 }

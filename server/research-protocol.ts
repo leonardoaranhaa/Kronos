@@ -48,6 +48,9 @@ export interface ResearchParams {
   minMoveBps: number;
   atrMultiple: number;
   maxDispersionBps: number;
+  /** Present on the live rule. The search grid does not fit these. */
+  rsiBuyMax?: number;
+  rsiSellMin?: number;
 }
 
 export const CURRENT_RULE: ResearchParams = {
@@ -56,8 +59,15 @@ export const CURRENT_RULE: ResearchParams = {
   trendFilter: true,
   minMoveBps: 30,
   atrMultiple: 0,
-  maxDispersionBps: 10_000
+  maxDispersionBps: 10_000,
+  rsiBuyMax: 70,
+  rsiSellMin: 30
 };
+
+/** BTCUSDT 1h study cadence. Paper must not decide on every candle when this rule is on. */
+export function researchPaperStride(): number {
+  return SERIES_SPECS.find(spec => spec.interval === '1h')?.stride ?? 12;
+}
 
 export const CURRENT_RULE_LONG_ONLY: ResearchParams = {
   ...CURRENT_RULE,

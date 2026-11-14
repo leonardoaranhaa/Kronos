@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CanonicalCandle } from '../shared/types';
-import { selectPaperStrategy } from '../server/paper-strategy';
-import { buildStudyRecords, promotionDecision, researchAction, simulateDecisions, tuneInSample } from '../server/research-eval';
+import { paperDecisionDue, selectPaperStrategy } from '../server/paper-strategy';
+import { buildStudyRecords, directionStats, promotionDecision, researchAction, simulateDecisions, tuneInSample } from '../server/research-eval';
 import { CURRENT_RULE, OOS_START_MS, embargoSplit, tuneGridSize } from '../server/research-protocol';
 import { buildSummary, renderResearchMarkdown, ResearchReport } from '../server/research-report';
 import { binomialSurvivalHalf } from '../server/research-stats';
@@ -12,6 +12,24 @@ test('binomial survival matches the exact coin-flip tail', () => {
   assert.ok(Math.abs(binomialSurvivalHalf(10, 10) - 1 / 1024) < 1e-12);
   assert.equal(binomialSurvivalHalf(0, 10), 1);
   assert.ok(binomialSurvivalHalf(50, 100) > 0.5);
+});
+
+test('the promoted paper rule decides on the study stride, not on every candle', () => {
+  const promoted = { id: 'pesquisa' as const };
+  assert.equal(paperDecisionDue({ id: 'atual' }, 1, 12), true);
+  assert.equal(paperDecisionDue(promoted, 11, 12), false);
+  assert.equal(paperDecisionDue(promoted, 12, 12), true);
+  assert.equal(paperDecisionDue(promoted, 24, 12), true);
+});
+
+test('overlapping direction records do not use a coin-flip tail on every row', () => {
+  const records = Array.from({ length: 12 }, (_, index) => ({ index, directionHit: true }));
+  const naive = binomialSurvivalHalf(12, 12);
+  const aware = directionStats(records, { horizon: 6, stride: 2 });
+  assert.ok(naive < 0.01);
+  assert.equal(aware.independentCompared, 2);
+  assert.ok((aware.pValue ?? 0) >= 0.25);
+  assert.equal(aware.pValueMethod, 'binomial-and-block-bootstrap');
 });
 
 test('the embargo keeps tuning outcomes on the in-sample side of the cut', () => {
@@ -35,6 +53,22 @@ test('a forecast is held when the samples disagree or the move does not clear th
   assert.equal(researchAction({ ...base, predictedReturnBps: 10 }, CURRENT_RULE), 'HOLD');
   assert.equal(researchAction({ ...base, ema9: 9 }, CURRENT_RULE), 'HOLD');
   assert.equal(researchAction({ ...base, predictedReturnBps: 20, atr: 1 }, { ...CURRENT_RULE, minMoveBps: 10, atrMultiple: 1.5 }), 'HOLD');
+  assert.equal(researchAction({ ...base, rsi14: 75 }, CURRENT_RULE), 'HOLD');
+  assert.equal(researchAction({ ...base, rsi14: 50 }, CURRENT_RULE), 'BUY');
+  assert.equal(researchAction({
+    ...base,
+    predictedReturnBps: -80,
+    ema9: 9,
+    ema20: 10,
+    rsi14: 25
+  }, CURRENT_RULE), 'HOLD');
+  assert.equal(researchAction({
+    ...base,
+    predictedReturnBps: -80,
+    ema9: 9,
+    ema20: 10,
+    rsi14: 25
+  }, { ...CURRENT_RULE, rsiBuyMax: undefined, rsiSellMin: undefined }), 'SELL');
 });
 
 test('study records drop the embargo and do not take the forecast from future candles', () => {

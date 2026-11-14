@@ -2,15 +2,15 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { CachedForecast } from './research-eval';
 
-export function loadForecastCache(filePath: string): Map<number, CachedForecast> {
+export function loadForecastCache(filePath: string, datasetSha256?: string): Map<number, CachedForecast> {
   const cache = new Map<number, CachedForecast>();
   if (!existsSync(filePath)) return cache;
   for (const line of readFileSync(filePath, 'utf8').split(/\r?\n/)) {
     if (!line.trim()) continue;
     const row = JSON.parse(line) as CachedForecast;
-    if (Number.isFinite(row.openTime) && Array.isArray(row.meanCloses) && Array.isArray(row.sampleEnds)) {
-      cache.set(row.openTime, row);
-    }
+    if (!Number.isFinite(row.openTime) || !Array.isArray(row.meanCloses) || !Array.isArray(row.sampleEnds)) continue;
+    if (datasetSha256 && row.datasetSha256 !== datasetSha256) continue;
+    cache.set(row.openTime, row);
   }
   return cache;
 }

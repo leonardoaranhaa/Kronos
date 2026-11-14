@@ -109,6 +109,7 @@ export default function App() {
   const [bandLow, setBandLow] = useState<number[]>([]);
   const [bandHigh, setBandHigh] = useState<number[]>([]);
   const [pUp, setPUp] = useState<number | null>(null);
+  const [pUpNote, setPUpNote] = useState('sem amostras suficientes');
   const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null);
   const [paper, setPaper] = useState<PaperView | null>(null);
   const [history, setHistory] = useState<HistoryView | null>(null);
@@ -125,6 +126,17 @@ export default function App() {
     rows?: { symbol: string; interval: string; split: string; strategy: string; returnPct: number; maxDrawdownPct: number; winRatePct: number | null; closedTrades: number; sharpe: number | null }[];
   } | null>(null);
   const [researchError, setResearchError] = useState('');
+  const [validation, setValidation] = useState<{
+    strategies?: { id: string; name: string; verdict: string; reason: string; metrics: {
+      excessReturnPct: number | null;
+      sharpe: number | null;
+      deflatedSharpeRatio: number | null;
+      probabilityOfBacktestOverfitting: number | null;
+      directionalAccuracy: number | null;
+      informationCoefficient: number | null;
+    } | null }[];
+  } | null>(null);
+  const [validationError, setValidationError] = useState('');
   const [patchCompare, setPatchCompare] = useState<{
     before?: { accuracy: number; pValue: number; tunedReturnPct: number; buyAndHoldReturnPct: number };
     after?: { accuracy: number | null; pValue: number | null; tunedReturnPct: number; buyAndHoldReturnPct: number; tunedTrades: number };
@@ -140,8 +152,11 @@ export default function App() {
         setBandLow(Array.isArray(initialBand.p10) ? initialBand.p10 : []);
         setBandHigh(Array.isArray(initialBand.p90) ? initialBand.p90 : []);
       }
-      const initialP = (payload as { pUp?: number }).pUp;
+      const initialP = (payload as { pUp?: number; probabilityNote?: string }).pUp;
+      const initialNote = (payload as { probabilityNote?: string }).probabilityNote;
       if (typeof initialP === 'number') setPUp(initialP);
+      else setPUp(null);
+      if (typeof initialNote === 'string') setPUpNote(initialNote);
       if (payload.paper) setPaper(payload.paper);
       if (payload.history) setHistory(payload.history);
       if (payload.candle) setPrice(payload.candle.close);
@@ -167,6 +182,12 @@ export default function App() {
       if (!response.ok) return;
       setPatchCompare(await response.json());
     }).catch(() => undefined);
+
+    fetch('/api/validation').then(async response => {
+      const body = await response.json();
+      if (!response.ok) setValidationError(body.error || 'Validação indisponível.');
+      else setValidation(body);
+    }).catch(() => setValidationError('Não foi possível ler o relatório de validação.'));
 
     fetch('/api/research').then(async response => {
       const body = await response.json();
@@ -197,6 +218,7 @@ export default function App() {
         setBandLow(Array.isArray(band?.p10) ? band.p10 : []);
         setBandHigh(Array.isArray(band?.p90) ? band.p90 : []);
         setPUp(typeof message.payload.pUp === 'number' ? message.payload.pUp : null);
+        setPUpNote(typeof message.payload.probabilityNote === 'string' ? message.payload.probabilityNote : 'sem amostras suficientes');
         if (message.payload.signal) {
           setPaper(current => current ? { ...current, signal: message.payload.signal, signalPending: true } : current);
         }
@@ -252,7 +274,7 @@ export default function App() {
               Força heurística: {signal ? pct.format(signal.heuristicScore * 100) : '0,00'}%. Isto não é probabilidade de acerto.
             </p>
             <p className="muted">{paper?.signalPending ? 'Sinal aguardando a próxima abertura para simular a execução.' : 'Sem execução pendente.'}</p>
-            <p className="muted">{pUp === null ? 'P(alta) aparece quando há mais de uma amostra.' : `P(alta) das amostras: ${pct.format(pUp * 100)}%.`}</p>
+            <p className="muted">{pUp === null ? pUpNote : `P(alta) das amostras: ${pct.format(pUp * 100)}%.`}</p>
           </section>
           <section className="card">
             <h2>Preço e previsão</h2>
@@ -360,6 +382,30 @@ export default function App() {
 
       {tab === 'pesquisa' && (
         <section className="card">
+          <h2>Validação</h2>
+          {validationError && <p>{validationError}</p>}
+          {validation?.strategies && (
+            <table>
+              <thead>
+                <tr><th>Estratégia</th><th>Veredito</th><th>Excesso</th><th>Sharpe</th><th>DSR</th><th>PBO</th></tr>
+              </thead>
+              <tbody>
+                {validation.strategies.map(strategy => (
+                  <tr key={strategy.id}>
+                    <td>{strategy.name}</td>
+                    <td className={strategy.verdict === 'aprovada' ? 'ok' : strategy.verdict.startsWith('reprovada') ? 'bad' : 'warn'}>{strategy.verdict}</td>
+                    <td>{strategy.metrics?.excessReturnPct === null || strategy.metrics?.excessReturnPct === undefined ? '—' : `${pct.format(strategy.metrics.excessReturnPct)}%`}</td>
+                    <td>{strategy.metrics?.sharpe === null || strategy.metrics?.sharpe === undefined ? '—' : pct.format(strategy.metrics.sharpe)}</td>
+                    <td>{strategy.metrics?.deflatedSharpeRatio === null || strategy.metrics?.deflatedSharpeRatio === undefined ? '—' : pct.format(strategy.metrics.deflatedSharpeRatio)}</td>
+                    <td>{strategy.metrics?.probabilityOfBacktestOverfitting === null || strategy.metrics?.probabilityOfBacktestOverfitting === undefined ? '—' : pct.format(strategy.metrics.probabilityOfBacktestOverfitting)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {validation?.strategies?.map(strategy => (
+            <p key={`${strategy.id}-reason`} className="muted"><strong>{strategy.name}.</strong> {strategy.reason}</p>
+          ))}
           <h2>Pesquisa de vantagem</h2>
           {researchError && <p>{researchError}</p>}
           {research && (

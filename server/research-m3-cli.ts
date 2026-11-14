@@ -1,5 +1,5 @@
 import { loadEnvFile } from './load-env';
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CanonicalCandle } from '../shared/types';
 import { sha256Content } from './binance-import-core';
@@ -21,6 +21,7 @@ import {
   SERIES_SPECS,
   ResearchParams
 } from './research-protocol';
+import { recordedM2Dataset } from './validation/m2-dataset';
 
 loadEnvFile();
 
@@ -40,22 +41,21 @@ const FROZEN_M2_PARAMS: ResearchParams = {
 const SPEC = SERIES_SPECS.find(spec => spec.interval === '1h') ?? SERIES_SPECS[1];
 
 function loadBtc1h(): { candles: CanonicalCandle[]; sha256: string; path: string } {
-  const manifests = readdirSync(join('data', 'manifests'))
-    .filter(name => name.endsWith('.json'))
-    .map(name => JSON.parse(readFileSync(join('data', 'manifests', name), 'utf8')) as {
-      symbol: string; interval: string; startTime: number; candleCount: number;
-      normalizedPath: string; normalizedSha256: string; quality?: { valid?: boolean };
-    })
-    .filter(manifest => manifest.symbol === 'BTCUSDT' && manifest.interval === '1h' && manifest.quality?.valid)
-    .sort((a, b) => b.candleCount - a.candleCount);
-  if (manifests.length === 0) throw new Error('BTCUSDT 1h snapshot not found');
-  const manifest = manifests[0];
-  const content = readFileSync(manifest.normalizedPath, 'utf8');
-  if (sha256Content(content) !== manifest.normalizedSha256) throw new Error('BTCUSDT 1h hash mismatch');
+  const report = JSON.parse(readFileSync('reports/research-m2.json', 'utf8')) as {
+    datasets?: { symbol: string; interval: string; normalizedPath: string; normalizedSha256: string }[];
+  };
+  const dataset = recordedM2Dataset(report, 'BTCUSDT', '1h');
+  if (!existsSync(dataset.normalizedPath)) {
+    throw new Error(`O snapshot BTCUSDT 1h do M2 não está em ${dataset.normalizedPath}. A comparação não usa outro arquivo.`);
+  }
+  const content = readFileSync(dataset.normalizedPath, 'utf8');
+  if (sha256Content(content) !== dataset.normalizedSha256) {
+    throw new Error('O arquivo BTCUSDT 1h não tem o hash registrado no M2. A comparação foi interrompida.');
+  }
   const candles = content.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line) as CanonicalCandle);
   const quality = auditCandleSeries(candles);
   if (!quality.valid) throw new Error(quality.errors.join('; '));
-  return { candles, sha256: manifest.normalizedSha256, path: manifest.normalizedPath };
+  return { candles, sha256: dataset.normalizedSha256, path: dataset.normalizedPath };
 }
 
 async function main(): Promise<void> {
@@ -78,8 +78,8 @@ async function main(): Promise<void> {
   if (ready && process.env.KRONOS_TOKENIZER_EVAL !== '0') {
     throw new Error('comparison must leave the tokenizer in train mode');
   }
-  const cachePath = join('data', 'research-cache', `BTCUSDT_1h_c${SPEC.context}_h${SPEC.horizon}_n${SAMPLE_COUNT}_rope425_tokentrain.jsonl`);
-  const cache = loadForecastCache(cachePath);
+  const cachePath = join('data', 'research-cache', `BTCUSDT_1h_c${SPEC.context}_h${SPEC.horizon}_n${SAMPLE_COUNT}_rope425_tokentrain_${sha256.slice(0, 12)}.jsonl`);
+  const cache = loadForecastCache(cachePath, sha256);
   const indexes: number[] = [];
   for (let t = SPEC.context - 1; t + SPEC.horizon < candles.length; t += SPEC.stride) indexes.push(t);
   const missing = indexes.filter(index => !cache.has(candles[index].openTime));
@@ -106,7 +106,7 @@ async function main(): Promise<void> {
       if (Math.abs(sampleMean - official) / official > 0.02) {
         throw new Error(`sample mean ${sampleMean} disagrees with ${official}`);
       }
-      const row = { openTime: candles[index].openTime, meanCloses, sampleEnds };
+      const row = { openTime: candles[index].openTime, meanCloses, sampleEnds, datasetSha256: sha256 };
       cache.set(row.openTime, row);
       fresh.push(row);
       if (fresh.length >= 25) appendForecastCache(cachePath, fresh.splice(0, fresh.length));
@@ -121,7 +121,7 @@ async function main(): Promise<void> {
 
   const records = buildStudyRecords(candles, cache, SPEC, OOS_START_MS);
   const oos = records.filter(record => record.split === 'out_of_sample');
-  const direction = directionStats(oos);
+  const direction = directionStats(oos, { horizon: SPEC.horizon, stride: SPEC.stride });
   const endIndex = candles.length;
   const tuned = runParams(candles, oos, FROZEN_M2_PARAMS, SPEC.intervalMs, endIndex);
   const holdMap = new Map<number, 'BUY' | 'SELL' | 'HOLD'>();

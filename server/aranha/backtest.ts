@@ -35,6 +35,19 @@ export interface AranhaSchedules {
   directionalHits: number;
   absoluteErrorBps: number;
   errorSamples: number;
+  /** One row per decision. The forward return is a label, recorded after the action is chosen. */
+  points: AranhaPoint[];
+}
+
+export interface AranhaPoint {
+  index: number;
+  fillIndex: number;
+  predictedBps: number | null;
+  probabilityUp: number | null;
+  structureSign: number | null;
+  filteredSign: number | null;
+  actualBps: number;
+  wentUp: boolean | null;
 }
 
 export interface AranhaBacktestResult {
@@ -119,7 +132,8 @@ export function buildAranhaSchedules(
     directionalSamples: 0,
     directionalHits: 0,
     absoluteErrorBps: 0,
-    errorSamples: 0
+    errorSamples: 0,
+    points: []
   };
   const random = mulberry32(config.randomSeed);
   const start = config.window * 2;
@@ -157,6 +171,19 @@ export function buildAranhaSchedules(
       }
     }
 
+    const actualBps = (candles[t + config.horizon].close / candles[t].close - 1) * 10_000;
+    const signOf = (action: SignalAction): number | null => action === 'BUY' ? 1 : action === 'SELL' ? -1 : null;
+    const comparable = summary.count >= ARANHA_GATES.minAnalogs && summary.medianForwardReturnBps !== null;
+    schedules.points.push({
+      index: t,
+      fillIndex: fillAt,
+      predictedBps: comparable ? summary.medianForwardReturnBps : null,
+      probabilityUp: comparable && summary.hitRateUp !== null ? summary.hitRateUp : null,
+      structureSign: signOf(schedules.structures.get(fillAt) ?? 'HOLD'),
+      filteredSign: signOf(filtered),
+      actualBps,
+      wentUp: actualBps === 0 ? null : actualBps > 0
+    });
     schedules.decisions += 1;
     schedules.firstOpenTime ??= candles[t].openTime;
     schedules.lastOpenTime = candles[t].openTime;

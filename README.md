@@ -70,6 +70,14 @@ npm run backtest
 
 Ele grava `reports/backtest-latest.json` e `reports/backtest-latest.md`. O painel, na aba Backtest, lê o JSON. O relatório vale com o número que sair, inclusive se a estratégia perder para comprar e segurar.
 
+A validação offline, com walk-forward, purga, Sharpe deflacionado e PBO, é outro comando. Ela também não envia ordem:
+
+```bash
+npm run validate
+```
+
+O veredito fica em `reports/validation-latest.md` e na aba Pesquisa.
+
 ## Regras do sinal
 
 Tudo é calculado só com candles já fechados.
