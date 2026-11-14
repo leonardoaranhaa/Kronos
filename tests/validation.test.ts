@@ -13,8 +13,9 @@ import { standardNormalCdf, standardNormalQuantile } from '../server/validation/
 import { probabilityOfBacktestOverfitting } from '../server/validation/pbo';
 import { kronosSeriesFromForecasts, kronosStrategyPlan, parseStrategyFlag } from '../server/validation/kronos-run';
 import { decideVerdict, VERDICT_RULES } from '../server/validation/protocol';
-import { renderValidationMarkdown, replaceStrategy, ValidationReport } from '../server/validation/report';
+import { applyStoredTrialDispersion, kronosDispersionNote, renderValidationMarkdown, replaceStrategy, ValidationReport } from '../server/validation/report';
 import { deflatedSharpeRatio, expectedMaximumSharpe, probabilisticSharpeRatio, sharpeRatio } from '../server/validation/sharpe';
+import { trialSharpePool } from '../server/validation/trials';
 import { combinatorialPurgedFolds, purgedTrainIndexes, walkForwardFolds } from '../server/validation/splits';
 import { selectNormalizedSnapshot } from '../server/validation/snapshot';
 import { readTrials, trialCount, upsertTrial } from '../server/validation/trials';
@@ -56,6 +57,15 @@ test('recorded trial Sharpes replace the standard-error dispersion', () => {
   assert.equal(result.dispersionSource, 'desvio-entre-tentativas');
   assert.equal(result.trials, 3);
   assert.ok(result.value !== null && result.value > 0 && result.value < 1);
+  const withGrid = deflatedSharpeRatio({
+    returns,
+    trials: 108,
+    recordedSharpes: [0.05, 0.06, 0.13],
+    skew: 0,
+    kurtosis: 3
+  });
+  assert.equal(withGrid.dispersionSource, 'desvio-entre-tentativas');
+  assert.equal(withGrid.trials, 108);
 });
 
 test('CSCV PBO is 1 for a split that reverses and 0 for a strategy that wins every block', () => {
@@ -250,6 +260,82 @@ test('the trial log counts a repeated variation once and a grid by its size', ()
   assert.equal(trialCount(entries, 'aranha'), 1);
   assert.equal(trialCount(entries, 'kronos'), 108);
   assert.equal(entries.find(entry => entry.family === 'aranha')?.sharpe, 0.2);
+});
+
+test('the kronos note does not deny a DSR that was calculated', () => {
+  const measured = kronosDispersionNote([{ family: 'kronos', metrics: { deflatedSharpeRatio: 0.02 } }]);
+  assert.equal(measured.includes('não inventa um DSR'), false);
+  assert.match(measured, /desvio-padrão dos Sharpes gravados/);
+  const missing = kronosDispersionNote([{ family: 'kronos', metrics: null }]);
+  assert.equal(missing.includes('não inventa um DSR'), false);
+  assert.match(missing, /erro-padrão/);
+});
+
+test('stored trial Sharpes replace the standard-error dispersion without touching the return', () => {
+  const report: ValidationReport = {
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    disclaimer: 'teste',
+    gates: { minIndependentDecisions: 30, deflatedSharpeMin: 0.95, maxProbabilityOfOverfit: 0.5, directionalAlpha: 0.05 },
+    trialLog: 'reports/trial-log.jsonl',
+    trialsByFamily: { kronos: 111 },
+    datasets: [],
+    strategies: [{
+      id: 'kronos-m2',
+      family: 'kronos',
+      name: 'Kronos M2',
+      verdict: 'reprovada (provável sorte/overfit)',
+      reason: 'O Sharpe do teste é positivo, mas o Sharpe deflacionado pelo número de tentativas não chega a 0,95.',
+      note: 'O DSR usa as 108 tentativas da grade.',
+      metrics: {
+        directionalAccuracy: 0.5,
+        directionalHits: 65,
+        directionalCompared: 131,
+        independentCompared: 131,
+        directionPValue: 0.57,
+        directionMethod: 'binomial',
+        informationCoefficient: 0,
+        informationCoefficientPValue: 0.9,
+        informationCoefficientObservations: 131,
+        strategyReturnPct: 4.49,
+        buyAndHoldReturnPct: -3.09,
+        excessReturnPct: 7.58,
+        trainExcessReturnPct: -20,
+        sharpe: 1.41,
+        sharpePerPeriod: 0.052057554227438296,
+        deflatedSharpeRatio: 0.02393428755304506,
+        deflatedSharpeBenchmark: 0.22993676190741977,
+        deflatedSharpeTrials: 108,
+        deflatedSharpeDispersion: 'erro-padrao',
+        probabilityOfBacktestOverfitting: 0.02,
+        pboSplits: 12870,
+        brier: 0.34,
+        climatologyBrier: 0.25,
+        reliability: [],
+        walkForwardFolds: 3,
+        cpcvFolds: 15,
+        cpcvMedianSharpe: 0.01,
+        observations: 131,
+        independentDecisions: 131
+      }
+    }],
+    notes: ['A grade do Kronos M2 continua registrada como 108 tentativas. Os Sharpes daquela grade não foram arquivados, então esta corrida não inventa um DSR para o Kronos.']
+  };
+  const next = applyStoredTrialDispersion(report, [
+    { id: 'grid', family: 'kronos', strategy: 'grade-m2', recordedAt: '2026-01-01T00:00:00.000Z', trials: 108, sharpe: null, periods: null, source: 'grid' },
+    { id: 'a', family: 'kronos', strategy: 'kronos-m2', recordedAt: '2026-01-01T00:00:00.000Z', trials: 1, sharpe: 0.052, periods: 131, source: 'test' },
+    { id: 'b', family: 'kronos', strategy: 'kronos-m3', recordedAt: '2026-01-01T00:00:00.000Z', trials: 1, sharpe: 0.059, periods: 131, source: 'test' },
+    { id: 'c', family: 'kronos', strategy: 'kronos-rule', recordedAt: '2026-01-01T00:00:00.000Z', trials: 1, sharpe: 0.134, periods: 131, source: 'test' }
+  ]);
+  const metrics = next.strategies[0].metrics;
+  assert.equal(metrics?.strategyReturnPct, 4.49);
+  assert.equal(metrics?.directionalHits, 65);
+  assert.equal(metrics?.deflatedSharpeDispersion, 'desvio-entre-tentativas');
+  assert.equal(metrics?.deflatedSharpeTrials, 111);
+  assert.notEqual(metrics?.deflatedSharpeRatio, 0.02393428755304506);
+  assert.equal(next.notes.some(note => note.includes('não inventa um DSR')), false);
+  assert.equal(trialSharpePool([
+    { id: 'a', family: 'kronos', strategy: 'kronos-m2', recordedAt: '2026-01-01T00:00:00.000Z', trials: 1, sharpe: 0.05, periods: 10, source: 'test' }
+  ], 'kronos', [0.05, 0.06]).length, 2);
 });
 
 test('the report prints the exact verdict rule', () => {

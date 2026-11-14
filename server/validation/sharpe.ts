@@ -104,7 +104,10 @@ export function deflatedSharpeRatio(options: {
   const finite = (options.recordedSharpes ?? []).filter(value => Number.isFinite(value));
   let dispersion: number | null = null;
   let dispersionSource: DeflatedSharpe['dispersionSource'] = 'indisponivel';
-  if (finite.length >= 2 && finite.length >= options.trials) {
+  // Two or more stored trial Sharpes are the cross-section. N can be larger
+  // when older attempts were counted without a Sharpe; the standard error is
+  // only the fallback when fewer than two Sharpes were saved.
+  if (finite.length >= 2) {
     dispersion = sampleStd(finite) ?? 0;
     dispersionSource = 'desvio-entre-tentativas';
   } else {
@@ -119,5 +122,36 @@ export function deflatedSharpeRatio(options: {
     trials: options.trials,
     dispersion,
     dispersionSource
+  };
+}
+
+/**
+ * Recompute a published DSR after the trial dispersion changes, keeping the
+ * skew and kurtosis that were baked into the previous probability.
+ */
+export function restateDeflatedSharpe(options: {
+  observed: number;
+  observations: number;
+  previousBenchmark: number;
+  previousProbability: number;
+  trials: number;
+  recordedSharpes: readonly number[];
+}): Pick<DeflatedSharpe, 'value' | 'benchmark' | 'trials' | 'dispersion' | 'dispersionSource'> | null {
+  const finite = options.recordedSharpes.filter(value => Number.isFinite(value));
+  if (finite.length < 2 || !(options.observations > 1)) return null;
+  if (!(options.previousProbability > 0 && options.previousProbability < 1)) return null;
+  const previousZ = standardNormalQuantile(options.previousProbability);
+  if (!Number.isFinite(previousZ) || previousZ === 0) return null;
+  const varianceFactor = ((options.observed - options.previousBenchmark) ** 2 * (options.observations - 1)) / (previousZ ** 2);
+  if (!(varianceFactor > 0)) return null;
+  const dispersion = sampleStd(finite) ?? 0;
+  const benchmark = expectedMaximumSharpe(options.trials, dispersion);
+  const z = ((options.observed - benchmark) * Math.sqrt(options.observations - 1)) / Math.sqrt(varianceFactor);
+  return {
+    value: standardNormalCdf(z),
+    benchmark,
+    trials: options.trials,
+    dispersion,
+    dispersionSource: 'desvio-entre-tentativas'
   };
 }

@@ -69,7 +69,7 @@ export function kronosStrategyPlan(id: KronosStrategyId): {
       params: FROZEN_M2_PARAMS,
       tokenizerEval: false,
       cacheTag: 'm2-tokentrain',
-      note: 'Regra congelada do M2 (long/short, 50 bps, sem filtro de média). O tokenizer fica em treino, como naquele estudo. O DSR usa as 108 tentativas da grade. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.'
+      note: 'Regra congelada do M2 (long/short, 50 bps, sem filtro de média). O tokenizer fica em treino, como naquele estudo. O DSR conta as tentativas do registro, inclusive as 108 da grade, e a dispersão é o desvio-padrão dos Sharpes gravados linha a linha. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.'
     };
   }
   if (id === 'kronos-m3') {

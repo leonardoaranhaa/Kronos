@@ -1,7 +1,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { StrategyEvaluation } from './evaluate';
-import { VERDICT_RULES, VerdictLabel } from './protocol';
+import { decideVerdict, VERDICT_RULES, VerdictLabel } from './protocol';
+import { restateDeflatedSharpe } from './sharpe';
+import { recordedSharpes, trialCount, TrialEntry } from './trials';
 
 export interface ValidationDataset {
   symbol: string;
@@ -126,6 +128,14 @@ export function renderValidationMarkdown(report: ValidationReport): string {
   return lines.join('\n');
 }
 
+export function kronosDispersionNote(strategies: readonly { family: string; metrics: { deflatedSharpeRatio: number | null } | null }[]): string {
+  const measured = strategies.some(strategy => strategy.family === 'kronos' && strategy.metrics?.deflatedSharpeRatio != null);
+  if (measured) {
+    return 'O DSR do Kronos usa o desvio-padrão dos Sharpes gravados no registro, um por tentativa medida. A grade M2 soma 108 na contagem; aquelas combinações não têm Sharpe individual no arquivo antigo.';
+  }
+  return 'A grade do Kronos M2 está no registro como 108 tentativas sem Sharpe individual. Sem pelo menos dois Sharpes gravados, a dispersão do DSR dessa família cai no erro-padrão.';
+}
+
 export function readValidationReport(filePath = join('reports', 'validation-latest.json')): ValidationReport | null {
   try {
     return JSON.parse(readFileSync(filePath, 'utf8')) as ValidationReport;
@@ -153,6 +163,60 @@ export function replaceStrategy(report: ValidationReport, strategy: ValidationSt
     strategies.splice(firstOther < 0 ? strategies.length : firstOther, 0, strategy);
   }
   return { ...report, generatedAt: new Date().toISOString(), strategies };
+}
+
+/**
+ * Replace only the deflated Sharpe fields, using the standard deviation of the
+ * Sharpes stored one per attempt. Returns, accuracy, IC, PBO and Brier stay.
+ */
+export function applyStoredTrialDispersion(report: ValidationReport, trials: readonly TrialEntry[]): ValidationReport {
+  const strategies = report.strategies.map(strategy => {
+    const metrics = strategy.metrics;
+    if (!metrics || metrics.deflatedSharpeDispersion !== 'erro-padrao') return strategy;
+    if (metrics.sharpePerPeriod === null || metrics.deflatedSharpeRatio === null || metrics.deflatedSharpeBenchmark === null || metrics.observations === null) {
+      return strategy;
+    }
+    const restated = restateDeflatedSharpe({
+      observed: metrics.sharpePerPeriod,
+      observations: metrics.observations,
+      previousBenchmark: metrics.deflatedSharpeBenchmark,
+      previousProbability: metrics.deflatedSharpeRatio,
+      trials: Math.max(trialCount(trials, strategy.family), metrics.deflatedSharpeTrials ?? 0),
+      recordedSharpes: recordedSharpes(trials, strategy.family)
+    });
+    if (!restated || restated.value === null || restated.benchmark === null) return strategy;
+    const nextMetrics = {
+      ...metrics,
+      deflatedSharpeRatio: restated.value,
+      deflatedSharpeBenchmark: restated.benchmark,
+      deflatedSharpeTrials: restated.trials,
+      deflatedSharpeDispersion: restated.dispersionSource
+    };
+    const verdict = decideVerdict({
+      independentDecisions: metrics.independentDecisions,
+      returnObservations: metrics.observations,
+      excessReturn: metrics.excessReturnPct === null ? null : metrics.excessReturnPct / 100,
+      trainExcessReturn: metrics.trainExcessReturnPct === null ? null : metrics.trainExcessReturnPct / 100,
+      perPeriodSharpe: metrics.sharpePerPeriod,
+      deflatedSharpe: restated.value,
+      probabilityOfOverfit: metrics.probabilityOfBacktestOverfitting,
+      directionPValue: metrics.directionPValue,
+      hasDirection: (metrics.directionalCompared ?? 0) > 0,
+      brier: metrics.brier,
+      climatologyBrier: metrics.climatologyBrier,
+      hasProbability: metrics.brier !== null
+    });
+    const note = strategy.family === 'kronos'
+      ? strategy.note.replace(
+        'O DSR usa as 108 tentativas da grade.',
+        'O DSR conta as tentativas do registro, inclusive as 108 da grade, e a dispersão é o desvio-padrão dos Sharpes gravados linha a linha.'
+      )
+      : strategy.note;
+    return { ...strategy, verdict: verdict.label, reason: verdict.reason, note, metrics: nextMetrics };
+  });
+  const notes = report.notes.filter(note => !note.includes('não inventa um DSR') && !note.includes('desvio-padrão dos Sharpes gravados'));
+  if (!notes.some(note => note === kronosDispersionNote(strategies))) notes.push(kronosDispersionNote(strategies));
+  return { ...report, generatedAt: new Date().toISOString(), strategies, notes };
 }
 
 export function writeValidationReport(report: ValidationReport, directory = 'reports'): void {

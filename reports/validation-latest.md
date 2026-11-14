@@ -2,7 +2,7 @@
 
 Simulação de pesquisa. Nenhuma ordem real foi enviada. Um número ruim continua publicado. Isto não é conselho de investimento.
 
-Gerado em 2026-11-14T13:45:30.602Z. O registro de tentativas está em `reports/trial-log.jsonl`.
+Gerado em 2026-11-14T13:56:12.427Z. O registro de tentativas está em `reports/trial-log.jsonl`.
 
 ## Regra do veredito
 
@@ -28,10 +28,10 @@ Cada um baixa BTCUSDT 1h, grava o cache de previsões e substitui só essa linha
 
 | Estratégia | Veredito | Excesso no teste | Sharpe | DSR | PBO | Acerto | IC |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Kronos M2: regra escolhida na amostra | reprovada (provável sorte/overfit) | 7.58% | 1.41 | 0.024 | 0.020 | 49.62% (65/131) | 0.004 |
-| Kronos M3: a mesma regra depois do RoPE | reprovada (provável sorte/overfit) | 8.27% | 1.60 | 0.028 | 0.017 | 48.85% (64/131) | -0.002 |
-| Kronos: regra atual | reprovada (provável sorte/overfit) | 15.45% | 3.63 | 0.122 | 0.000 | 48.85% (64/131) | -0.002 |
-| Aranha: análogos | reprovada | -7.41% | -3.68 | 0.007 | 0.002 | 53.62% (74/138) | 0.060 |
+| Kronos M2: regra escolhida na amostra | reprovada (provável sorte/overfit) | 7.58% | 1.41 | 0.234 | 0.020 | 49.62% (65/131) | 0.004 |
+| Kronos M3: a mesma regra depois do RoPE | reprovada (provável sorte/overfit) | 8.27% | 1.60 | 0.260 | 0.017 | 48.85% (64/131) | -0.002 |
+| Kronos: regra atual | reprovada (provável sorte/overfit) | 15.45% | 3.63 | 0.571 | 0.000 | 48.85% (64/131) | -0.002 |
+| Aranha: análogos | reprovada | -7.41% | -3.68 | 0.010 | 0.002 | 53.62% (74/138) | 0.060 |
 | Aranha: estruturas | inconclusiva | 15.43% | n/d | n/d | 0.002 | n/d | n/d |
 | Aranha: persistência com filtro | reprovada | -19.95% | -6.31 | 0.000 | 0.002 | 46.25% (37/80) | -0.094 |
 | Crawler: score | reprovada | -27.48% | -44.13 | 0.000 | 0.146 | 48.52% (82/169) | 0.004 |
@@ -44,10 +44,10 @@ Cada um baixa BTCUSDT 1h, grava o cache de previsões e substitui só essa linha
 
 **reprovada (provável sorte/overfit).** O Sharpe do teste é positivo, mas o Sharpe deflacionado pelo número de tentativas não chega a 0,95.
 
-Regra congelada do M2 (long/short, 50 bps, sem filtro de média). O tokenizer fica em treino, como naquele estudo. O DSR usa as 108 tentativas da grade. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.
+Regra congelada do M2 (long/short, 50 bps, sem filtro de média). O tokenizer fica em treino, como naquele estudo. O DSR conta as tentativas do registro, inclusive as 108 da grade, e a dispersão é o desvio-padrão dos Sharpes gravados linha a linha. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.
 
 - Retorno no teste: 4.49%. Comprar e segurar: -3.09%. Excesso: 7.58%. Excesso no treino do walk-forward: -20.06%.
-- Sharpe anualizado: 1.41. Sharpe por período: 0.0521. Sharpe deflacionado: 0.024 (referência 0.2299, 108 tentativas, dispersão: erro-padrao).
+- Sharpe anualizado: 1.41. Sharpe por período: 0.0521. Sharpe deflacionado: 0.234 (referência 0.1172, 111 tentativas, dispersão: desvio-entre-tentativas).
 - PBO por CSCV: 0.020 em 12870 divisões.
 - Acerto direcional: 49.62% em 131 decisões, 131 sem sobreposição. p-valor 0.5693 (binomial).
 - IC: 0.004 (p=0.9700, n=131).
@@ -70,7 +70,7 @@ Regra congelada do M2 (long/short, 50 bps, sem filtro de média). O tokenizer fi
 A mesma regra do M2, com o tokenizer em eval e o patch de RoPE aplicado no checkout. Nenhuma combinação nova entra na grade. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.
 
 - Retorno no teste: 5.18%. Comprar e segurar: -3.09%. Excesso: 8.27%. Excesso no treino do walk-forward: -19.61%.
-- Sharpe anualizado: 1.60. Sharpe por período: 0.0591. Sharpe deflacionado: 0.028 (referência 0.2311, 109 tentativas, dispersão: erro-padrao).
+- Sharpe anualizado: 1.60. Sharpe por período: 0.0591. Sharpe deflacionado: 0.260 (referência 0.1172, 111 tentativas, dispersão: desvio-entre-tentativas).
 - PBO por CSCV: 0.017 em 12870 divisões.
 - Acerto direcional: 48.85% em 131 decisões, 131 sem sobreposição. p-valor 0.6366 (binomial).
 - IC: -0.002 (p=0.9940, n=131).
@@ -93,7 +93,7 @@ A mesma regra do M2, com o tokenizer em eval e o patch de RoPE aplicado no check
 Regra ao vivo: movimento mínimo de 30 bps, EMA9/EMA20 e bloqueio de RSI. O tokenizer fica em eval. O PBO desta corrida compara a regra com o último candle e com comprar e segurar.
 
 - Retorno no teste: 12.36%. Comprar e segurar: -3.09%. Excesso: 15.45%. Excesso no treino do walk-forward: -18.56%.
-- Sharpe anualizado: 3.63. Sharpe por período: 0.1344. Sharpe deflacionado: 0.122 (referência 0.2467, 110 tentativas, dispersão: erro-padrao).
+- Sharpe anualizado: 3.63. Sharpe por período: 0.1344. Sharpe deflacionado: 0.571 (referência 0.1172, 111 tentativas, dispersão: desvio-entre-tentativas).
 - PBO por CSCV: 0.000 em 12870 divisões.
 - Acerto direcional: 48.85% em 131 decisões, 131 sem sobreposição. p-valor 0.6366 (binomial).
 - IC: -0.002 (p=0.9940, n=131).
@@ -116,7 +116,7 @@ Regra ao vivo: movimento mínimo de 30 bps, EMA9/EMA20 e bloqueio de RSI. O toke
 Sinal dos trechos parecidos, com a regra fixa de mediana e taxa de acerto. P(alta) é a fração de análogos que subiu, só quando há vizinhos suficientes.
 
 - Retorno no teste: -22.84%. Comprar e segurar: -15.43%. Excesso: -7.41%. Excesso no treino do walk-forward: -35.56%.
-- Sharpe anualizado: -3.68. Sharpe por período: -0.1361. Sharpe deflacionado: 0.007 (referência 0.0718, 3 tentativas, dispersão: erro-padrao).
+- Sharpe anualizado: -3.68. Sharpe por período: -0.1361. Sharpe deflacionado: 0.010 (referência 0.0587, 3 tentativas, dispersão: desvio-entre-tentativas).
 - PBO por CSCV: 0.002 em 12870 divisões.
 - Acerto direcional: 53.62% em 138 decisões, 138 sem sobreposição. p-valor 0.2219 (binomial).
 - IC: 0.060 (p=0.4960, n=138).
@@ -156,7 +156,7 @@ Sinal do regime de 1h, bloqueado quando o gráfico de 5m rompe contra ele. Não 
 Segue o último candle, exceto quando os análogos discordam. Não produz probabilidade.
 
 - Retorno no teste: -35.38%. Comprar e segurar: -15.43%. Excesso: -19.95%. Excesso no treino do walk-forward: -39.49%.
-- Sharpe anualizado: -6.31. Sharpe por período: -0.2335. Sharpe deflacionado: 0.000 (referência 0.0731, 3 tentativas, dispersão: erro-padrao).
+- Sharpe anualizado: -6.31. Sharpe por período: -0.2335. Sharpe deflacionado: 0.000 (referência 0.0587, 3 tentativas, dispersão: desvio-entre-tentativas).
 - PBO por CSCV: 0.002 em 12870 divisões.
 - Acerto direcional: 46.25% em 80 decisões, 80 sem sobreposição. p-valor 0.7830 (binomial).
 - IC: -0.094 (p=0.3940, n=80).
@@ -237,8 +237,8 @@ A mesma carteira, ordenada só pelo volume anormal com o sinal da vela.
 - Nenhuma ordem foi enviada. O módulo de execução legado não entra nesta conta.
 - O Sharpe deflacionado segue Bailey e López de Prado. O PBO segue a validação cruzada simétrica combinatória de Bailey, Borwein, López de Prado e Zhu. O código é próprio; pypbo, que é AGPL, não é importado.
 - Decisões cujo horizonte se sobrepõe não entram no teste binomial como se fossem independentes. O p-valor usado é o mais alto entre o binomial das decisões sem sobreposição e, quando há sobreposição, um bootstrap em blocos.
-- A grade do Kronos M2 continua registrada como 108 tentativas. Os Sharpes daquela grade não foram arquivados, então esta corrida não inventa um DSR para o Kronos.
 - No crawler, a carteira é reavaliada a cada 12 candles de 5 minutos e segurada por essas mesmas 12 velas. Janelas de 4h e 24h do estudo antigo se sobrepõem e não entram no veredito.
 - Kronos M2: regra escolhida na amostra foi medido com o worker local. O cache fica em data/research-cache/.
 - Kronos M3: a mesma regra depois do RoPE foi medido com o worker local. O cache fica em data/research-cache/.
 - Kronos: regra atual foi medido com o worker local. O cache fica em data/research-cache/.
+- O DSR do Kronos usa o desvio-padrão dos Sharpes gravados no registro, um por tentativa medida. A grade M2 soma 108 na contagem; aquelas combinações não têm Sharpe individual no arquivo antigo.

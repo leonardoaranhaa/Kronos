@@ -90,6 +90,8 @@ npm run validate -- --strategy kronos-rule
 
 `kronos-m2` deixa o tokenizer em treino, como no estudo antigo. `kronos-m3` e `kronos-rule` exigem o patch de RoPE já aplicado no checkout. `kronos-rule` é a regra ao vivo, com o bloqueio de RSI.
 
+Cada tentativa medida grava o seu Sharpe por período em `reports/trial-log.jsonl`. O Sharpe deflacionado usa o desvio-padrão desses Sharpes. A grade de 108 combinações do M2 entra na contagem, mas o arquivo antigo não guardou o Sharpe de cada combinação, então ela não entra na dispersão. O erro-padrão do Sharpe só substitui essa dispersão quando há menos de dois Sharpes gravados.
+
 ## Regras do sinal
 
 Tudo é calculado só com candles já fechados.

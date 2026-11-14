@@ -15,6 +15,7 @@ import {
 } from './kronos-run';
 import { VALIDATION_GATES } from './protocol';
 import {
+  kronosDispersionNote,
   readValidationReport,
   replaceStrategy,
   ValidationReport,
@@ -138,8 +139,7 @@ async function main(): Promise<void> {
   const notes = [
     'Nenhuma ordem foi enviada. O módulo de execução legado não entra nesta conta.',
     'O Sharpe deflacionado segue Bailey e López de Prado. O PBO segue a validação cruzada simétrica combinatória de Bailey, Borwein, López de Prado e Zhu. O código é próprio; pypbo, que é AGPL, não é importado.',
-    'Decisões cujo horizonte se sobrepõe não entram no teste binomial como se fossem independentes. O p-valor usado é o mais alto entre o binomial das decisões sem sobreposição e, quando há sobreposição, um bootstrap em blocos.',
-    'A grade do Kronos M2 continua registrada como 108 tentativas. Os Sharpes daquela grade não foram arquivados, então esta corrida não inventa um DSR para o Kronos.'
+    'Decisões cujo horizonte se sobrepõe não entram no teste binomial como se fossem independentes. O p-valor usado é o mais alto entre o binomial das decisões sem sobreposição e, quando há sobreposição, um bootstrap em blocos.'
   ];
 
   upsertTrial(TRIAL_LOG, {
@@ -260,7 +260,7 @@ async function main(): Promise<void> {
     },
     datasets,
     strategies,
-    notes
+    notes: [...notes, kronosDispersionNote(strategies)]
   };
   writeValidationReport(report);
   console.log(report.strategies.map(strategy => `${strategy.name}: ${strategy.verdict}`).join('\n'));

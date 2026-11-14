@@ -6,7 +6,7 @@ import { probabilityOfBacktestOverfitting } from './pbo';
 import { VALIDATION_GATES, decideVerdict, VerdictResult } from './protocol';
 import { annualizeSharpe, deflatedSharpeRatio, sharpeRatio } from './sharpe';
 import { combinatorialPurgedFolds, walkForwardFolds } from './splits';
-import { trialCount, TrialEntry } from './trials';
+import { trialCount, trialSharpePool, TrialEntry } from './trials';
 
 export interface DecisionObservation {
   /** Position of this decision in the aligned return array. */
@@ -135,8 +135,8 @@ export function evaluateFamily(
     .map(strategy => sharpeRatio(sliceByIndex(strategy.returns, testIndexes)))
     .filter((value): value is number => value !== null);
   const loggedTrials = trialCount(trials, family);
-  const trialsUsed = Math.max(loggedTrials, strategies.length);
-  const recorded = loggedTrials > ownSharpes.length ? [] : ownSharpes;
+  const trialsUsed = Math.max(loggedTrials, ownSharpes.length, 1);
+  const recorded = trialSharpePool(trials, family, ownSharpes);
 
   const cpcv = usable
     ? combinatorialPurgedFolds({

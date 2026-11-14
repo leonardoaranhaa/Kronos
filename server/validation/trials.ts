@@ -57,8 +57,20 @@ export function trialCount(entries: readonly TrialEntry[], family: string): numb
   return trialsFor(entries, family).reduce((sum, entry) => sum + entry.trials, 0);
 }
 
+/** One Sharpe per measured attempt. A counted grid without a stored Sharpe is not repeated. */
 export function recordedSharpes(entries: readonly TrialEntry[], family: string): number[] {
   return trialsFor(entries, family)
     .filter(entry => entry.trials === 1 && entry.sharpe !== null && Number.isFinite(entry.sharpe))
     .map(entry => entry.sharpe as number);
+}
+
+/** Logged Sharpes plus the attempt being scored, without counting the same value twice. */
+export function trialSharpePool(entries: readonly TrialEntry[], family: string, extra: readonly number[] = []): number[] {
+  const pool = recordedSharpes(entries, family);
+  for (const value of extra) {
+    if (!Number.isFinite(value)) continue;
+    if (pool.some(existing => Math.abs(existing - value) <= 1e-12)) continue;
+    pool.push(value);
+  }
+  return pool;
 }
