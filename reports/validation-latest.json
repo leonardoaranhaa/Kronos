@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-14T13:56:12.427Z",
+  "generatedAt": "2026-11-14T14:31:24.027Z",
   "disclaimer": "Simulação de pesquisa. Nenhuma ordem real foi enviada. Um número ruim continua publicado. Isto não é conselho de investimento.",
   "gates": {
     "minIndependentDecisions": 30,
@@ -11,7 +11,10 @@
   "trialsByFamily": {
     "kronos": 111,
     "aranha": 3,
-    "crawler": 3
+    "crawler": 3,
+    "futuros-btcusdt": 3,
+    "futuros-ethusdt": 3,
+    "futuros-solusdt": 3
   },
   "datasets": [
     {
@@ -139,6 +142,33 @@
       "lastOpenTime": 1794663000000,
       "sha256": "8f30e71ca36c0a9d56b82c2903e0c27fceb9638568a4153781c6c590c3bc2b6a",
       "source": "https://data-api.binance.vision/api/v3/klines"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "interval": "1h",
+      "candles": 17520,
+      "firstOpenTime": 1730419200000,
+      "lastOpenTime": 1793487600000,
+      "sha256": "c32d91c8daf3f39dcc7e3eaa57bac2a92244ad6a9dd6139c78639f929a8b795e",
+      "source": "https://data.binance.vision/data/futures/um"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "interval": "1h",
+      "candles": 17520,
+      "firstOpenTime": 1730419200000,
+      "lastOpenTime": 1793487600000,
+      "sha256": "4bd296f48ed1db85dcc4544aaf24b20a8ca3bd2d7693319780fdc016f17ec2ec",
+      "source": "https://data.binance.vision/data/futures/um"
+    },
+    {
+      "symbol": "SOLUSDT",
+      "interval": "1h",
+      "candles": 17520,
+      "firstOpenTime": 1730419200000,
+      "lastOpenTime": 1793487600000,
+      "sha256": "0bafb5f4f96be6165b7d4326339eccb501b60a77684c059f772313597f91f9cc",
+      "source": "https://data.binance.vision/data/futures/um"
     }
   ],
   "strategies": [
@@ -650,6 +680,573 @@
         "observations": 169,
         "independentDecisions": 75
       }
+    },
+    {
+      "id": "futuros-btcusdt-logistica",
+      "family": "futuros-btcusdt",
+      "name": "Futuros BTCUSDT: logística",
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O ganho contra comprar e segurar apareceu no treino do walk-forward e não se repetiu no teste.",
+      "note": "Compra só com P(alta) ≥ 0,55 e retorno previsto acima do custo de ida e volta. Vende no espelho. O restante fica zerado. Horizonte de 4 horas, sem sobreposição, em BTCUSDT perp 1h. Cada decisão usa só o que já tinha fechado. O modelo de cada bloco de teste não vê o rótulo desse bloco. Custo de ida e volta: 0.12% (taxa taker de 5 bps e slippage de 1 bp por lado). Comprar e segurar paga o funding do perp e uma ida e volta no período inteiro, não a cada bloco. Regra gravada em 2026-11-14T14:30:00.000Z, antes deste teste. P(alta) no teste interno: p10 0.442, mediana 0.505, p90 0.570. 1742 decisões ficaram só no treino inicial e não entram no placar. Posições diferentes de zero: 233 de 2612.",
+      "metrics": {
+        "directionalAccuracy": 0.4872286079182631,
+        "directionalHits": 763,
+        "directionalCompared": 1566,
+        "independentCompared": 1566,
+        "directionPValue": 0.8499155669284086,
+        "directionMethod": "binomial",
+        "informationCoefficient": -0.011604126148787267,
+        "informationCoefficientPValue": 0.6,
+        "informationCoefficientObservations": 1566,
+        "strategyReturnPct": -15.695072431817936,
+        "buyAndHoldReturnPct": 12.737664022969476,
+        "excessReturnPct": -28.43273645478741,
+        "trainExcessReturnPct": 25.972529359065977,
+        "sharpe": -1.6381592141824333,
+        "sharpePerPeriod": -0.034993337986028564,
+        "deflatedSharpeRatio": 0.017034603501692436,
+        "deflatedSharpeBenchmark": 0.01389674737162938,
+        "deflatedSharpeTrials": 3,
+        "deflatedSharpeDispersion": "desvio-entre-tentativas",
+        "probabilityOfBacktestOverfitting": 0.075990675990676,
+        "pboSplits": 12870,
+        "brier": 0.25155706017550217,
+        "climatologyBrier": 0.24997390264708397,
+        "reliability": [
+          {
+            "binLow": 0.2,
+            "binHigh": 0.3,
+            "count": 5,
+            "meanPredicted": 0.27151924478474077,
+            "realizedUpRate": 0.4
+          },
+          {
+            "binLow": 0.3,
+            "binHigh": 0.4,
+            "count": 26,
+            "meanPredicted": 0.3707547565834251,
+            "realizedUpRate": 0.46153846153846156
+          },
+          {
+            "binLow": 0.4,
+            "binHigh": 0.5,
+            "count": 686,
+            "meanPredicted": 0.47021215852833687,
+            "realizedUpRate": 0.4970845481049563
+          },
+          {
+            "binLow": 0.5,
+            "binHigh": 0.6,
+            "count": 805,
+            "meanPredicted": 0.5345344954446031,
+            "realizedUpRate": 0.5192546583850932
+          },
+          {
+            "binLow": 0.6,
+            "binHigh": 0.7,
+            "count": 41,
+            "meanPredicted": 0.6248768283749558,
+            "realizedUpRate": 0.4146341463414634
+          },
+          {
+            "binLow": 0.7,
+            "binHigh": 0.8,
+            "count": 3,
+            "meanPredicted": 0.7083299708517531,
+            "realizedUpRate": 0.3333333333333333
+          }
+        ],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": -0.0380336884765979,
+        "observations": 1566,
+        "independentDecisions": 1566
+      }
+    },
+    {
+      "id": "futuros-btcusdt-direcao",
+      "family": "futuros-btcusdt",
+      "name": "Futuros BTCUSDT: só direção",
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O ganho contra comprar e segurar apareceu no treino do walk-forward e não se repetiu no teste.",
+      "note": "O mesmo modelo. Compra com P(alta) ≥ 0,55 e vende com P(alta) ≤ 0,45, sem exigir o tamanho previsto. Horizonte de 4 horas, sem sobreposição, em BTCUSDT perp 1h. Cada decisão usa só o que já tinha fechado. O modelo de cada bloco de teste não vê o rótulo desse bloco. Custo de ida e volta: 0.12% (taxa taker de 5 bps e slippage de 1 bp por lado). Comprar e segurar paga o funding do perp e uma ida e volta no período inteiro, não a cada bloco. Regra gravada em 2026-11-14T14:30:00.000Z, antes deste teste. P(alta) no teste interno: p10 0.442, mediana 0.505, p90 0.570. 1742 decisões ficaram só no treino inicial e não entram no placar. Posições diferentes de zero: 779 de 2612.",
+      "metrics": {
+        "directionalAccuracy": 0.4872286079182631,
+        "directionalHits": 763,
+        "directionalCompared": 1566,
+        "independentCompared": 1566,
+        "directionPValue": 0.8499155669284086,
+        "directionMethod": "binomial",
+        "informationCoefficient": -0.011604126148787267,
+        "informationCoefficientPValue": 0.6,
+        "informationCoefficientObservations": 1566,
+        "strategyReturnPct": -39.963521129822524,
+        "buyAndHoldReturnPct": 12.737664022969476,
+        "excessReturnPct": -52.70118515279199,
+        "trainExcessReturnPct": 5.657102668885427,
+        "sharpe": -3.1613214388987547,
+        "sharpePerPeriod": -0.0675301818261131,
+        "deflatedSharpeRatio": 0.0004502124096003012,
+        "deflatedSharpeBenchmark": 0.01389674737162938,
+        "deflatedSharpeTrials": 3,
+        "deflatedSharpeDispersion": "desvio-entre-tentativas",
+        "probabilityOfBacktestOverfitting": 0.075990675990676,
+        "pboSplits": 12870,
+        "brier": 0.25155706017550217,
+        "climatologyBrier": 0.24997390264708397,
+        "reliability": [
+          {
+            "binLow": 0.2,
+            "binHigh": 0.3,
+            "count": 5,
+            "meanPredicted": 0.27151924478474077,
+            "realizedUpRate": 0.4
+          },
+          {
+            "binLow": 0.3,
+            "binHigh": 0.4,
+            "count": 26,
+            "meanPredicted": 0.3707547565834251,
+            "realizedUpRate": 0.46153846153846156
+          },
+          {
+            "binLow": 0.4,
+            "binHigh": 0.5,
+            "count": 686,
+            "meanPredicted": 0.47021215852833687,
+            "realizedUpRate": 0.4970845481049563
+          },
+          {
+            "binLow": 0.5,
+            "binHigh": 0.6,
+            "count": 805,
+            "meanPredicted": 0.5345344954446031,
+            "realizedUpRate": 0.5192546583850932
+          },
+          {
+            "binLow": 0.6,
+            "binHigh": 0.7,
+            "count": 41,
+            "meanPredicted": 0.6248768283749558,
+            "realizedUpRate": 0.4146341463414634
+          },
+          {
+            "binLow": 0.7,
+            "binHigh": 0.8,
+            "count": 3,
+            "meanPredicted": 0.7083299708517531,
+            "realizedUpRate": 0.3333333333333333
+          }
+        ],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": -0.0654778316422665,
+        "observations": 1566,
+        "independentDecisions": 1566
+      }
+    },
+    {
+      "id": "futuros-btcusdt-funding",
+      "family": "futuros-btcusdt",
+      "name": "Futuros BTCUSDT: funding",
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O ganho contra comprar e segurar apareceu no treino do walk-forward e não se repetiu no teste.",
+      "note": "Sem ajuste. Vende se o funding passa de 3 bps e compra se fica abaixo de −1 bp. É a regra de referência, não um modelo. Horizonte de 4 horas, sem sobreposição, em BTCUSDT perp 1h. Cada decisão usa só o que já tinha fechado. O modelo de cada bloco de teste não vê o rótulo desse bloco. Custo de ida e volta: 0.12% (taxa taker de 5 bps e slippage de 1 bp por lado). Comprar e segurar paga o funding do perp e uma ida e volta no período inteiro, não a cada bloco. Regra gravada em 2026-11-14T14:30:00.000Z, antes deste teste. P(alta) no teste interno: p10 0.442, mediana 0.505, p90 0.570. 1742 decisões ficaram só no treino inicial e não entram no placar. Posições diferentes de zero: 14 de 2612.",
+      "metrics": {
+        "directionalAccuracy": 0.16666666666666666,
+        "directionalHits": 1,
+        "directionalCompared": 6,
+        "independentCompared": 6,
+        "directionPValue": 0.9843750000000007,
+        "directionMethod": "binomial",
+        "informationCoefficient": -0.05267972561250329,
+        "informationCoefficientPValue": 0.028,
+        "informationCoefficientObservations": 1566,
+        "strategyReturnPct": -3.5459649259898973,
+        "buyAndHoldReturnPct": 12.737664022969476,
+        "excessReturnPct": -16.28362894895937,
+        "trainExcessReturnPct": 45.9578995539607,
+        "sharpe": -2.4756676105479083,
+        "sharpePerPeriod": -0.052883671310424256,
+        "deflatedSharpeRatio": 1.6602611148448657e-8,
+        "deflatedSharpeBenchmark": 0.01389674737162938,
+        "deflatedSharpeTrials": 3,
+        "deflatedSharpeDispersion": "desvio-entre-tentativas",
+        "probabilityOfBacktestOverfitting": 0.075990675990676,
+        "pboSplits": 12870,
+        "brier": null,
+        "climatologyBrier": null,
+        "reliability": [],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": 0.021436729206356524,
+        "observations": 1566,
+        "independentDecisions": 6
+      }
+    },
+    {
+      "id": "futuros-ethusdt-logistica",
+      "family": "futuros-ethusdt",
+      "name": "Futuros ETHUSDT: logística",
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O Sharpe do teste é positivo, mas o Sharpe deflacionado pelo número de tentativas não chega a 0,95.",
+      "note": "Compra só com P(alta) ≥ 0,55 e retorno previsto acima do custo de ida e volta. Vende no espelho. O restante fica zerado. Horizonte de 4 horas, sem sobreposição, em ETHUSDT perp 1h. Cada decisão usa só o que já tinha fechado. O modelo de cada bloco de teste não vê o rótulo desse bloco. Custo de ida e volta: 0.12% (taxa taker de 5 bps e slippage de 1 bp por lado). Comprar e segurar paga o funding do perp e uma ida e volta no período inteiro, não a cada bloco. Regra gravada em 2026-11-14T14:30:00.000Z, antes deste teste. P(alta) no teste interno: p10 0.445, mediana 0.514, p90 0.571. 1741 decisões ficaram só no treino inicial e não entram no placar. Posições diferentes de zero: 548 de 2610.",
+      "metrics": {
+        "directionalAccuracy": 0.5038314176245211,
+        "directionalHits": 789,
+        "directionalCompared": 1566,
+        "independentCompared": 1566,
+        "directionPValue": 0.3905232134043872,
+        "directionMethod": "binomial",
+        "informationCoefficient": -0.03124465761978374,
+        "informationCoefficientPValue": 0.222,
+        "informationCoefficientObservations": 1566,
+        "strategyReturnPct": -0.4772373881615999,
+        "buyAndHoldReturnPct": 12.129603638522202,
+        "excessReturnPct": -12.606841026683801,
+        "trainExcessReturnPct": -1.4914568438542553,
+        "sharpe": 0.05873275882354651,
+        "sharpePerPeriod": 0.0012546126546008497,
+        "deflatedSharpeRatio": 0.2298025412505137,
+        "deflatedSharpeBenchmark": 0.01991599627623583,
+        "deflatedSharpeTrials": 3,
+        "deflatedSharpeDispersion": "desvio-entre-tentativas",
+        "probabilityOfBacktestOverfitting": 0.09362859362859363,
+        "pboSplits": 12870,
+        "brier": 0.2507939499740274,
+        "climatologyBrier": 0.24985279461872584,
+        "reliability": [
+          {
+            "binLow": 0.3,
+            "binHigh": 0.4,
+            "count": 9,
+            "meanPredicted": 0.357741485942595,
+            "realizedUpRate": 0.5555555555555556
+          },
+          {
+            "binLow": 0.4,
+            "binHigh": 0.5,
+            "count": 521,
+            "meanPredicted": 0.48032745275409766,
+            "realizedUpRate": 0.5201535508637236
+          },
+          {
+            "binLow": 0.5,
+            "binHigh": 0.6,
+            "count": 1010,
+            "meanPredicted": 0.5324274763952078,
+            "realizedUpRate": 0.5079207920792079
+          },
+          {
+            "binLow": 0.6,
+            "binHigh": 0.7,
+            "count": 24,
+            "meanPredicted": 0.6247847269577037,
+            "realizedUpRate": 0.5416666666666666
+          },
+          {
+            "binLow": 0.7,
+            "binHigh": 0.8,
+            "count": 2,
+            "meanPredicted": 0.7159294801342444,
+            "realizedUpRate": 0
+          }
+        ],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": -0.033545984508673556,
+        "observations": 1566,
+        "independentDecisions": 1566
+      }
+    },
+    {
+      "id": "futuros-ethusdt-direcao",
+      "family": "futuros-ethusdt",
+      "name": "Futuros ETHUSDT: só direção",
+      "verdict": "reprovada",
+      "reason": "Depois das taxas, o walk-forward ficou atrás de comprar e segurar no treino e no teste. O Sharpe desta série não sustenta vantagem. Acerto perto ou acima de 50% não muda esse veredito.",
+      "note": "O mesmo modelo. Compra com P(alta) ≥ 0,55 e vende com P(alta) ≤ 0,45, sem exigir o tamanho previsto. Horizonte de 4 horas, sem sobreposição, em ETHUSDT perp 1h. Cada decisão usa só o que já tinha fechado. O modelo de cada bloco de teste não vê o rótulo desse bloco. Custo de ida e volta: 0.12% (taxa taker de 5 bps e slippage de 1 bp por lado). Comprar e segurar paga o funding do perp e uma ida e volta no período inteiro, não a cada bloco. Regra gravada em 2026-11-14T14:30:00.000Z, antes deste teste. P(alta) no teste interno: p10 0.445, mediana 0.514, p90 0.571. 1741 decisões ficaram só no treino inicial e não entram no placar. Posições diferentes de zero: 794 de 2610.",
+      "metrics": {
+        "directionalAccuracy": 0.5038314176245211,
+        "directionalHits": 789,
+        "directionalCompared": 1566,
+        "independentCompared": 1566,
+        "directionPValue": 0.3905232134043872,
+        "directionMethod": "binomial",
+        "informationCoefficient": -0.03124465761978374,
+        "informationCoefficientPValue": 0.222,
+        "informationCoefficientObservations": 1566,
+        "strategyReturnPct": -36.617997875375984,
+        "buyAndHoldReturnPct": 12.129603638522202,
+        "excessReturnPct": -48.74760151389819,
+        "trainExcessReturnPct": -5.543540164021454,
+        "sharpe": -2.082152814475233,
+        "sharpePerPeriod": -0.044477653053922414,
+        "deflatedSharpeRatio": 0.004693115424518668,
+        "deflatedSharpeBenchmark": 0.01991599627623583,
+        "deflatedSharpeTrials": 3,
+        "deflatedSharpeDispersion": "desvio-entre-tentativas",
+        "probabilityOfBacktestOverfitting": 0.09362859362859363,
+        "pboSplits": 12870,
+        "brier": 0.2507939499740274,
+        "climatologyBrier": 0.24985279461872584,
+        "reliability": [
+          {
+            "binLow": 0.3,
+            "binHigh": 0.4,
+            "count": 9,
+            "meanPredicted": 0.357741485942595,
+            "realizedUpRate": 0.5555555555555556
+          },
+          {
+            "binLow": 0.4,
+            "binHigh": 0.5,
+            "count": 521,
+            "meanPredicted": 0.48032745275409766,
+            "realizedUpRate": 0.5201535508637236
+          },
+          {
+            "binLow": 0.5,
+            "binHigh": 0.6,
+            "count": 1010,
+            "meanPredicted": 0.5324274763952078,
+            "realizedUpRate": 0.5079207920792079
+          },
+          {
+            "binLow": 0.6,
+            "binHigh": 0.7,
+            "count": 24,
+            "meanPredicted": 0.6247847269577037,
+            "realizedUpRate": 0.5416666666666666
+          },
+          {
+            "binLow": 0.7,
+            "binHigh": 0.8,
+            "count": 2,
+            "meanPredicted": 0.7159294801342444,
+            "realizedUpRate": 0
+          }
+        ],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": -0.04985858345173892,
+        "observations": 1566,
+        "independentDecisions": 1566
+      }
+    },
+    {
+      "id": "futuros-ethusdt-funding",
+      "family": "futuros-ethusdt",
+      "name": "Futuros ETHUSDT: funding",
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O ganho contra comprar e segurar apareceu no treino do walk-forward e não se repetiu no teste.",
+      "note": "Sem ajuste. Vende se o funding passa de 3 bps e compra se fica abaixo de −1 bp. É a regra de referência, não um modelo. Horizonte de 4 horas, sem sobreposição, em ETHUSDT perp 1h. Cada decisão usa só o que já tinha fechado. O modelo de cada bloco de teste não vê o rótulo desse bloco. Custo de ida e volta: 0.12% (taxa taker de 5 bps e slippage de 1 bp por lado). Comprar e segurar paga o funding do perp e uma ida e volta no período inteiro, não a cada bloco. Regra gravada em 2026-11-14T14:30:00.000Z, antes deste teste. P(alta) no teste interno: p10 0.445, mediana 0.514, p90 0.571. 1741 decisões ficaram só no treino inicial e não entram no placar. Posições diferentes de zero: 64 de 2610.",
+      "metrics": {
+        "directionalAccuracy": 0.5,
+        "directionalHits": 25,
+        "directionalCompared": 50,
+        "independentCompared": 50,
+        "directionPValue": 0.5561375863296114,
+        "directionMethod": "binomial",
+        "informationCoefficient": 0.007576629380715562,
+        "informationCoefficientPValue": 0.77,
+        "informationCoefficientObservations": 1566,
+        "strategyReturnPct": -3.50712744868793,
+        "buyAndHoldReturnPct": 12.129603638522202,
+        "excessReturnPct": -15.636731087210132,
+        "trainExcessReturnPct": 47.961330671631366,
+        "sharpe": -0.6268642619238722,
+        "sharpePerPeriod": -0.013390684372405265,
+        "deflatedSharpeRatio": 0.09340395635328916,
+        "deflatedSharpeBenchmark": 0.01991599627623583,
+        "deflatedSharpeTrials": 3,
+        "deflatedSharpeDispersion": "desvio-entre-tentativas",
+        "probabilityOfBacktestOverfitting": 0.09362859362859363,
+        "pboSplits": 12870,
+        "brier": null,
+        "climatologyBrier": null,
+        "reliability": [],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": -0.01652490422745956,
+        "observations": 1566,
+        "independentDecisions": 50
+      }
+    },
+    {
+      "id": "futuros-solusdt-logistica",
+      "family": "futuros-solusdt",
+      "name": "Futuros SOLUSDT: logística",
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O ganho contra comprar e segurar apareceu no treino do walk-forward e não se repetiu no teste.",
+      "note": "Compra só com P(alta) ≥ 0,55 e retorno previsto acima do custo de ida e volta. Vende no espelho. O restante fica zerado. Horizonte de 4 horas, sem sobreposição, em SOLUSDT perp 1h. Cada decisão usa só o que já tinha fechado. O modelo de cada bloco de teste não vê o rótulo desse bloco. Custo de ida e volta: 0.12% (taxa taker de 5 bps e slippage de 1 bp por lado). Comprar e segurar paga o funding do perp e uma ida e volta no período inteiro, não a cada bloco. Regra gravada em 2026-11-14T14:30:00.000Z, antes deste teste. P(alta) no teste interno: p10 0.443, mediana 0.504, p90 0.562. 1738 decisões ficaram só no treino inicial e não entram no placar. Posições diferentes de zero: 547 de 2607.",
+      "metrics": {
+        "directionalAccuracy": 0.4896907216494845,
+        "directionalHits": 760,
+        "directionalCompared": 1552,
+        "independentCompared": 1552,
+        "directionPValue": 0.7988855418148253,
+        "directionMethod": "binomial",
+        "informationCoefficient": -0.03822049421397498,
+        "informationCoefficientPValue": 0.11,
+        "informationCoefficientObservations": 1563,
+        "strategyReturnPct": -32.34449145366193,
+        "buyAndHoldReturnPct": 21.527867605653263,
+        "excessReturnPct": -53.87235905931519,
+        "trainExcessReturnPct": 27.632989123964503,
+        "sharpe": -1.8953061884111693,
+        "sharpePerPeriod": -0.04048635167075862,
+        "deflatedSharpeRatio": 0.003259028988055593,
+        "deflatedSharpeBenchmark": 0.02812551975928809,
+        "deflatedSharpeTrials": 3,
+        "deflatedSharpeDispersion": "desvio-entre-tentativas",
+        "probabilityOfBacktestOverfitting": 0.4055167055167055,
+        "pboSplits": 12870,
+        "brier": 0.2515323189172821,
+        "climatologyBrier": 0.24999989766550432,
+        "reliability": [
+          {
+            "binLow": 0.3,
+            "binHigh": 0.4,
+            "count": 20,
+            "meanPredicted": 0.3766489029846734,
+            "realizedUpRate": 0.45
+          },
+          {
+            "binLow": 0.4,
+            "binHigh": 0.5,
+            "count": 653,
+            "meanPredicted": 0.4701673222747817,
+            "realizedUpRate": 0.5022970903522205
+          },
+          {
+            "binLow": 0.5,
+            "binHigh": 0.6,
+            "count": 869,
+            "meanPredicted": 0.5324876696997611,
+            "realizedUpRate": 0.5017261219792866
+          },
+          {
+            "binLow": 0.6,
+            "binHigh": 0.7,
+            "count": 21,
+            "meanPredicted": 0.612746329845776,
+            "realizedUpRate": 0.42857142857142855
+          }
+        ],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": -0.02965156133815256,
+        "observations": 1563,
+        "independentDecisions": 1552
+      }
+    },
+    {
+      "id": "futuros-solusdt-direcao",
+      "family": "futuros-solusdt",
+      "name": "Futuros SOLUSDT: só direção",
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O ganho contra comprar e segurar apareceu no treino do walk-forward e não se repetiu no teste.",
+      "note": "O mesmo modelo. Compra com P(alta) ≥ 0,55 e vende com P(alta) ≤ 0,45, sem exigir o tamanho previsto. Horizonte de 4 horas, sem sobreposição, em SOLUSDT perp 1h. Cada decisão usa só o que já tinha fechado. O modelo de cada bloco de teste não vê o rótulo desse bloco. Custo de ida e volta: 0.12% (taxa taker de 5 bps e slippage de 1 bp por lado). Comprar e segurar paga o funding do perp e uma ida e volta no período inteiro, não a cada bloco. Regra gravada em 2026-11-14T14:30:00.000Z, antes deste teste. P(alta) no teste interno: p10 0.443, mediana 0.504, p90 0.562. 1738 decisões ficaram só no treino inicial e não entram no placar. Posições diferentes de zero: 738 de 2607.",
+      "metrics": {
+        "directionalAccuracy": 0.4896907216494845,
+        "directionalHits": 760,
+        "directionalCompared": 1552,
+        "independentCompared": 1552,
+        "directionPValue": 0.7988855418148253,
+        "directionMethod": "binomial",
+        "informationCoefficient": -0.03822049421397498,
+        "informationCoefficientPValue": 0.11,
+        "informationCoefficientObservations": 1563,
+        "strategyReturnPct": -52.96275694880484,
+        "buyAndHoldReturnPct": 21.527867605653263,
+        "excessReturnPct": -74.4906245544581,
+        "trainExcessReturnPct": 39.433090371383784,
+        "sharpe": -3.1772225044053966,
+        "sharpePerPeriod": -0.06786985049494246,
+        "deflatedSharpeRatio": 0.00005015424927642664,
+        "deflatedSharpeBenchmark": 0.02812551975928809,
+        "deflatedSharpeTrials": 3,
+        "deflatedSharpeDispersion": "desvio-entre-tentativas",
+        "probabilityOfBacktestOverfitting": 0.4055167055167055,
+        "pboSplits": 12870,
+        "brier": 0.2515323189172821,
+        "climatologyBrier": 0.24999989766550432,
+        "reliability": [
+          {
+            "binLow": 0.3,
+            "binHigh": 0.4,
+            "count": 20,
+            "meanPredicted": 0.3766489029846734,
+            "realizedUpRate": 0.45
+          },
+          {
+            "binLow": 0.4,
+            "binHigh": 0.5,
+            "count": 653,
+            "meanPredicted": 0.4701673222747817,
+            "realizedUpRate": 0.5022970903522205
+          },
+          {
+            "binLow": 0.5,
+            "binHigh": 0.6,
+            "count": 869,
+            "meanPredicted": 0.5324876696997611,
+            "realizedUpRate": 0.5017261219792866
+          },
+          {
+            "binLow": 0.6,
+            "binHigh": 0.7,
+            "count": 21,
+            "meanPredicted": 0.612746329845776,
+            "realizedUpRate": 0.42857142857142855
+          }
+        ],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": -0.03393780212508305,
+        "observations": 1563,
+        "independentDecisions": 1552
+      }
+    },
+    {
+      "id": "futuros-solusdt-funding",
+      "family": "futuros-solusdt",
+      "name": "Futuros SOLUSDT: funding",
+      "verdict": "reprovada (provável sorte/overfit)",
+      "reason": "O ganho contra comprar e segurar apareceu no treino do walk-forward e não se repetiu no teste.",
+      "note": "Sem ajuste. Vende se o funding passa de 3 bps e compra se fica abaixo de −1 bp. É a regra de referência, não um modelo. Horizonte de 4 horas, sem sobreposição, em SOLUSDT perp 1h. Cada decisão usa só o que já tinha fechado. O modelo de cada bloco de teste não vê o rótulo desse bloco. Custo de ida e volta: 0.12% (taxa taker de 5 bps e slippage de 1 bp por lado). Comprar e segurar paga o funding do perp e uma ida e volta no período inteiro, não a cada bloco. Regra gravada em 2026-11-14T14:30:00.000Z, antes deste teste. P(alta) no teste interno: p10 0.443, mediana 0.504, p90 0.562. 1738 decisões ficaram só no treino inicial e não entram no placar. Posições diferentes de zero: 273 de 2607.",
+      "metrics": {
+        "directionalAccuracy": 0.50920245398773,
+        "directionalHits": 83,
+        "directionalCompared": 163,
+        "independentCompared": 163,
+        "directionPValue": 0.43779058644469626,
+        "directionMethod": "binomial",
+        "informationCoefficient": 0.01742071632702639,
+        "informationCoefficientPValue": 0.492,
+        "informationCoefficientObservations": 1563,
+        "strategyReturnPct": -2.4430970661920126,
+        "buyAndHoldReturnPct": 21.527867605653263,
+        "excessReturnPct": -23.970964671845273,
+        "trainExcessReturnPct": 27.08231220494648,
+        "sharpe": -0.10347033937013672,
+        "sharpePerPeriod": -0.0022102690176640217,
+        "deflatedSharpeRatio": 0.11571761869000245,
+        "deflatedSharpeBenchmark": 0.02812551975928809,
+        "deflatedSharpeTrials": 3,
+        "deflatedSharpeDispersion": "desvio-entre-tentativas",
+        "probabilityOfBacktestOverfitting": 0.4055167055167055,
+        "pboSplits": 12870,
+        "brier": null,
+        "climatologyBrier": null,
+        "reliability": [],
+        "walkForwardFolds": 3,
+        "cpcvFolds": 15,
+        "cpcvMedianSharpe": -0.027525915428065175,
+        "observations": 1563,
+        "independentDecisions": 163
+      }
     }
   ],
   "notes": [
@@ -660,6 +1257,18 @@
     "Kronos M2: regra escolhida na amostra foi medido com o worker local. O cache fica em data/research-cache/.",
     "Kronos M3: a mesma regra depois do RoPE foi medido com o worker local. O cache fica em data/research-cache/.",
     "Kronos: regra atual foi medido com o worker local. O cache fica em data/research-cache/.",
-    "O DSR do Kronos usa o desvio-padrão dos Sharpes gravados no registro, um por tentativa medida. A grade M2 soma 108 na contagem; aquelas combinações não têm Sharpe individual no arquivo antigo."
+    "O DSR do Kronos usa o desvio-padrão dos Sharpes gravados no registro, um por tentativa medida. A grade M2 soma 108 na contagem; aquelas combinações não têm Sharpe individual no arquivo antigo.",
+    "Futuros: BTCUSDT 17520 candles de 1h, 2190 fundings, 210237 métricas, 17471 horas de livro. Dias sem métrica: 0. Dias sem livro: 1. aggTrades de 2026-10-29, 2026-10-30, 2026-10-31: 72 horas, diferença média absoluta do taker buy 0.006806 contratos da unidade base, máxima 0.129000.",
+    "Futuros: sonda 200 https://data.binance.vision/data/futures/um/daily/metrics/BTCUSDT/BTCUSDT-metrics-2020-10-01.zip.",
+    "Futuros: sonda 404 https://data.binance.vision/data/futures/um/daily/bookDepth/BTCUSDT/BTCUSDT-bookDepth-2022-12-01.zip (HTTP 404).",
+    "Futuros: sonda 200 https://data.binance.vision/data/futures/um/daily/bookDepth/BTCUSDT/BTCUSDT-bookDepth-2023-03-01.zip.",
+    "Futuros: sonda 404 https://data.binance.vision/data/futures/um/daily/liquidationSnapshot/BTCUSDT/BTCUSDT-liquidationSnapshot-2025-11-01.zip (HTTP 404).",
+    "Futuros: sonda 451 https://fapi.binance.com/fapi/v1/allForceOrders?symbol=BTCUSDT&limit=1 (HTTP 451).",
+    "Futuros: ETHUSDT 17520 candles de 1h, 2190 fundings, 210237 métricas, 17471 horas de livro. Dias sem métrica: 0. Dias sem livro: 1. aggTrades de 2026-10-29, 2026-10-30, 2026-10-31: 72 horas, diferença média absoluta do taker buy 0.303639 contratos da unidade base, máxima 10.931000.",
+    "Futuros: SOLUSDT 17520 candles de 1h, 2190 fundings, 210237 métricas, 17447 horas de livro. Dias sem métrica: 0. Dias sem livro: 2. aggTrades de 2026-10-29, 2026-10-30, 2026-10-31: 72 horas, diferença média absoluta do taker buy 0.000000 contratos da unidade base, máxima 0.000000.",
+    "Futuros: o modelo é regressão logística para a direção e ridge para o tamanho do retorno. LightGBM e CatBoost não entram, para o teste ficar determinístico e sem biblioteca nativa. As três regras foram gravadas antes do teste e nenhuma foi trocada depois.",
+    "Futuros: liquidações não entram no modelo. O dump público diário não está em data.binance.vision. O coletor ao vivo tenta o websocket forceOrder e o REST allForceOrders, sem chave.",
+    "Futuros: o CVD e o desequilíbrio de agressão usados no modelo vêm do taker buy/sell de cada candle de 1h, que é o agregado público das aggTrades. O livro entra como desequilíbrio de nocional a 1% do bookDepth. O OFI de melhor oferta é só do coletor ao vivo, porque o histórico tick a tick do book não foi baixado.",
+    "Futuros: a janela congelada é 2024-11-01T00:00:00.000Z a 2026-11-01T00:00:00.000Z. Histórico anterior que a sonda achar não foi usado. Alongar a janela seria outro teste, com registro novo."
   ]
 }

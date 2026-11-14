@@ -17,6 +17,7 @@ import {
   type TeiaView,
   type TeiaWindowId
 } from '../../shared/teia';
+import { alignFuturesOverlay, type TimedRate, type TimedValue } from '../../server/futures/overlay-series';
 import { atr, bollinger, ema, macd, parsePeriods, rsi, sma, vwap } from './chart/indicators';
 import {
   FIB_LEVELS,
@@ -209,12 +210,20 @@ export default function ProChart({
   const [rsiOn, setRsiOn] = useState(false);
   const [macdOn, setMacdOn] = useState(false);
   const [atrOn, setAtrOn] = useState(false);
+  const [futuresOn, setFuturesOn] = useState(false);
+  const [futuresRaw, setFuturesRaw] = useState<{ funding: TimedRate[]; openInterest: TimedValue[]; note: string }>({
+    funding: [],
+    openInterest: [],
+    note: ''
+  });
   const [legend, setLegend] = useState<Legend>({ title: 'sem dados', rows: [] });
   const [notePoint, setNotePoint] = useState<DrawPoint | null>(null);
   const [noteText, setNoteText] = useState('');
   const rsiHost = useRef<HTMLDivElement>(null);
   const macdHost = useRef<HTMLDivElement>(null);
   const atrHost = useRef<HTMLDivElement>(null);
+  const futuresHost = useRef<HTMLDivElement>(null);
+  const futuresRef = useRef<IChartApi | null>(null);
   const draftRef = useRef<Drawing | null>(null);
   draftRef.current = draft;
   candlesRef.current = candles;
@@ -316,7 +325,7 @@ export default function ProChart({
       const visible = chart.timeScale().getVisibleLogicalRange();
       if (!visible || syncing.current) return;
       syncing.current = true;
-      for (const pane of [rsiRef.current, macdRef.current, atrRef.current]) {
+      for (const pane of [rsiRef.current, macdRef.current, atrRef.current, futuresRef.current]) {
         pane?.timeScale().setVisibleLogicalRange(visible);
       }
       syncing.current = false;
@@ -529,6 +538,105 @@ export default function ProChart({
     paintLegend(candles.at(-1)?.time ?? null);
   }, [candles, volumeOn, emaOn, emaText, smaOn, smaText, vwapOn, bbOn, rsiOn, macdOn, atrOn, logScale]);
 
+  useEffect(() => {
+    if (!futuresOn) {
+      setFuturesRaw({ funding: [], openInterest: [], note: '' });
+      return;
+    }
+    const ctrl = new AbortController();
+    const first = candles[0]?.time;
+    const last = candles[candles.length - 1]?.time;
+    const params = new URLSearchParams({ symbol, interval });
+    if (first !== undefined) params.set('startTime', String(first));
+    if (last !== undefined) params.set('endTime', String(last + INTERVAL_MS[interval]));
+    fetch(`/api/futures/overlay?${params.toString()}`, { signal: ctrl.signal })
+      .then(async response => {
+        const body = await response.json() as { funding?: TimedRate[]; openInterest?: TimedValue[]; note?: string; error?: string };
+        if (ctrl.signal.aborted) return;
+        if (!response.ok) {
+          setFuturesRaw({ funding: [], openInterest: [], note: body.error || 'Sem dados de futuros.' });
+          return;
+        }
+        setFuturesRaw({
+          funding: Array.isArray(body.funding) ? body.funding : [],
+          openInterest: Array.isArray(body.openInterest) ? body.openInterest : [],
+          note: body.note || ''
+        });
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setFuturesRaw({ funding: [], openInterest: [], note: 'Não foi possível ler funding e open interest.' });
+      });
+    return () => ctrl.abort();
+  }, [futuresOn, symbol, interval, candles[0]?.time, candles[candles.length - 1]?.time, candles.length]);
+
+  useEffect(() => {
+    const node = futuresHost.current;
+    if (!futuresOn || !node) {
+      futuresRef.current?.remove();
+      futuresRef.current = null;
+      return;
+    }
+    if (!futuresRef.current) {
+      node.style.position = 'relative';
+      node.style.height = '120px';
+      node.style.overflow = 'hidden';
+      const pane = createChart(node, {
+        width: node.clientWidth || 640,
+        height: 120,
+        layout: { background: { type: ColorType.Solid, color: '#0b1220' }, textColor: '#94a3b8' },
+        grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+        leftPriceScale: { visible: true, borderColor: '#334155' },
+        rightPriceScale: { borderColor: '#334155' },
+        timeScale: { borderColor: '#334155', timeVisible: true, secondsVisible: false },
+        handleScroll: { mouseWheel: true, pressedMouseMove: true },
+        handleScale: { mouseWheel: true, pinch: true }
+      });
+      pane.timeScale().subscribeVisibleLogicalRangeChange(range => {
+        const main = chartRef.current;
+        if (!range || !main || syncing.current) return;
+        syncing.current = true;
+        main.timeScale().setVisibleLogicalRange(range);
+        syncing.current = false;
+      });
+      futuresRef.current = pane;
+    }
+    const pane = futuresRef.current as IChartApi & { owned?: ISeriesApi<'Line'>[] };
+    pane.applyOptions({ width: node.clientWidth || 640 });
+    for (const series of pane.owned ?? []) pane.removeSeries(series);
+    const times = candles.map(candle => candle.time);
+    const aligned = alignFuturesOverlay({
+      candleTimes: times,
+      intervalMs: INTERVAL_MS[interval],
+      funding: futuresRaw.funding,
+      openInterest: futuresRaw.openInterest
+    });
+    const owned: ISeriesApi<'Line'>[] = [];
+    const fundingLine = pane.addLineSeries({
+      color: '#f59e0b',
+      lineWidth: 1,
+      priceScaleId: 'right',
+      priceLineVisible: false,
+      lastValueVisible: false,
+      title: 'Funding bps'
+    });
+    fundingLine.setData(lineRows(times, aligned.map(point => point.fundingBps)));
+    owned.push(fundingLine);
+    const interestLine = pane.addLineSeries({
+      color: '#38bdf8',
+      lineWidth: 1,
+      priceScaleId: 'left',
+      priceLineVisible: false,
+      lastValueVisible: false,
+      title: 'Open interest'
+    });
+    interestLine.setData(lineRows(times, aligned.map(point => point.openInterest)));
+    owned.push(interestLine);
+    pane.owned = owned;
+    const mainRange = chartRef.current?.timeScale().getVisibleLogicalRange();
+    if (mainRange) pane.timeScale().setVisibleLogicalRange(mainRange);
+    legendRef.current(candles.at(-1)?.time ?? null);
+  }, [futuresOn, futuresRaw, candles, interval]);
+
   function syncPane(
     slot: { current: IChartApi | null },
     node: HTMLDivElement | null,
@@ -668,6 +776,16 @@ export default function ProChart({
     if (atrOn) {
       const value = atr(rows, 14)[index];
       if (value !== null) bits.push(`ATR ${priceFmt.format(value)}`);
+    }
+    if (futuresOn) {
+      const overlay = alignFuturesOverlay({
+        candleTimes: [nearest.time],
+        intervalMs: INTERVAL_MS[intervalRef.current],
+        funding: futuresRaw.funding,
+        openInterest: futuresRaw.openInterest
+      })[0];
+      if (overlay?.fundingBps !== null && overlay?.fundingBps !== undefined) bits.push(`Funding ${priceFmt.format(overlay.fundingBps)} bps`);
+      if (overlay?.openInterest !== null && overlay?.openInterest !== undefined) bits.push(`OI ${volFmt.format(overlay.openInterest)}`);
     }
     const span = INTERVAL_MS[intervalRef.current];
     for (const item of annotations) {
@@ -1178,6 +1296,7 @@ export default function ProChart({
       {rsiOn && <div className="subpane"><span>RSI 14</span><div ref={rsiHost} className="pane-host" /></div>}
       {macdOn && <div className="subpane"><span>MACD</span><div ref={macdHost} className="pane-host" /></div>}
       {atrOn && <div className="subpane"><span>ATR 14</span><div ref={atrHost} className="pane-host" /></div>}
+      {futuresOn && <div className="subpane"><span>Funding (bps, direita) e open interest (esquerda)</span><div ref={futuresHost} className="pane-host" /></div>}
       <div className="pro-options">
         <label><input type="checkbox" checked={volumeOn} onChange={event => setVolumeOn(event.target.checked)} /> Volume</label>
         <label><input type="checkbox" checked={emaOn} onChange={event => setEmaOn(event.target.checked)} /> EMA <input className="tiny" value={emaText} onChange={event => setEmaText(event.target.value)} /></label>
@@ -1187,11 +1306,13 @@ export default function ProChart({
         <label><input type="checkbox" checked={rsiOn} onChange={event => setRsiOn(event.target.checked)} /> RSI</label>
         <label><input type="checkbox" checked={macdOn} onChange={event => setMacdOn(event.target.checked)} /> MACD</label>
         <label><input type="checkbox" checked={atrOn} onChange={event => setAtrOn(event.target.checked)} /> ATR</label>
+        <label><input type="checkbox" checked={futuresOn} onChange={event => setFuturesOn(event.target.checked)} /> Funding / OI</label>
         {layerLabels.map(item => (
           <label key={item.id}><input type="checkbox" checked={layers[item.id]} onChange={event => setLayers(current => ({ ...current, [item.id]: event.target.checked }))} /> {item.label}</label>
         ))}
       </div>
       {note && candles.length > 0 && <p className="muted">{note}</p>}
+      {futuresOn && futuresRaw.note && <p className="muted">{futuresRaw.note}</p>}
       <p className="muted">Passe o mouse numa vela para abrir a teia. Clique para fixar. A camada Teia marca as velas com eventos gravados na janela anterior. Atalhos: V navegar, S selecionar, T H R Q F P N M desenham, Delete apaga, Ctrl+Z desfaz, Esc fecha a teia, L troca a escala, 0 reseta.</p>
     </div>
   );

@@ -127,12 +127,17 @@ export default function App() {
   } | null>(null);
   const [researchError, setResearchError] = useState('');
   const [validation, setValidation] = useState<{
+    notes?: string[];
     strategies?: { id: string; name: string; verdict: string; reason: string; metrics: {
       excessReturnPct: number | null;
       sharpe: number | null;
       deflatedSharpeRatio: number | null;
       probabilityOfBacktestOverfitting: number | null;
       directionalAccuracy: number | null;
+      directionalHits: number | null;
+      directionalCompared: number | null;
+      brier: number | null;
+      climatologyBrier: number | null;
       informationCoefficient: number | null;
     } | null }[];
   } | null>(null);
@@ -404,7 +409,18 @@ export default function App() {
             </table>
           )}
           {validation?.strategies?.map(strategy => (
-            <p key={`${strategy.id}-reason`} className="muted"><strong>{strategy.name}.</strong> {strategy.reason}</p>
+            <p key={`${strategy.id}-reason`} className="muted">
+              <strong>{strategy.name}.</strong> {strategy.reason}
+              {strategy.metrics?.directionalAccuracy !== null && strategy.metrics?.directionalAccuracy !== undefined
+                ? ` Acerto ${pct.format(strategy.metrics.directionalAccuracy * 100)}% (${strategy.metrics.directionalHits ?? 0}/${strategy.metrics.directionalCompared ?? 0}).`
+                : ''}
+              {strategy.metrics?.brier !== null && strategy.metrics?.brier !== undefined
+                ? ` Brier ${strategy.metrics.brier.toFixed(4)} contra ${strategy.metrics.climatologyBrier === null || strategy.metrics.climatologyBrier === undefined ? '—' : strategy.metrics.climatologyBrier.toFixed(4)} da taxa-base.`
+                : ''}
+            </p>
+          ))}
+          {validation?.notes?.filter(note => note.toLowerCase().includes('futuro')).map(note => (
+            <p key={note} className="muted">{note}</p>
           ))}
           <h2>Pesquisa de vantagem</h2>
           {researchError && <p>{researchError}</p>}
