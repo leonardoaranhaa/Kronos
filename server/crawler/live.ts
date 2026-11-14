@@ -7,6 +7,7 @@ export interface LiveCandle {
   h: number;
   l: number;
   c: number;
+  v: number;
 }
 
 export interface LiveZone {
@@ -98,7 +99,8 @@ export function buildCoinView(input: {
     o: bar.open,
     h: bar.high,
     l: bar.low,
-    c: bar.close
+    c: bar.close,
+    v: bar.volume
   }));
   const annotations: LiveAnnotation[] = [];
   const base = input.symbol.replace(/USDT$/, '');

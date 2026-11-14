@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CoinView, LiveFeedItem } from '../../server/crawler/live';
-import type { CrawlerRow } from '../../server/crawler/types';
+import type { CrawlerRow, DepthBook, OnchainEvent, TapePrint, WhalePrint } from '../../server/crawler/types';
 import AranhaLiveChart from './AranhaLiveChart';
 
 export interface AranhaLivePayload {
@@ -11,6 +11,11 @@ export interface AranhaLivePayload {
   rows: CrawlerRow[];
   feed: LiveFeedItem[];
   charts: Record<string, CoinView>;
+  books?: Record<string, DepthBook>;
+  tape?: TapePrint[];
+  whales?: WhalePrint[];
+  onchain?: OnchainEvent[];
+  forecastBps?: Record<string, number | null>;
 }
 
 const price = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });

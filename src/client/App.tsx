@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import PriceChart from './PriceChart';
 import { AranhaBrief } from './AranhaPanel';
-import AranhaLive, { type AranhaLivePayload } from './AranhaLive';
+import type { AranhaLivePayload } from './AranhaLive';
+import Desk from './Desk';
+import AranhaPanel from './AranhaPanel';
 import { CanonicalCandle, TechnicalIndicators } from '../../shared/types';
 import type { ResearchSignal } from '../../server/signals';
 
-type Tab = 'mercado' | 'paper' | 'backtest' | 'aranha';
+type Tab = 'mercado' | 'paper' | 'backtest' | 'aranha' | 'pesquisa';
 
 interface PaperView {
   equity: number;
@@ -175,14 +177,14 @@ export default function App() {
     : [];
 
   return (
-    <div className="app">
+    <div className={tab === 'aranha' ? 'app app-wide' : 'app'}>
       <div className="banner">
         Pesquisa e simulação. Este programa não envia ordens e não promete lucro.
       </div>
       <header>
         <div>
-          <h1>Kronos</h1>
-          <p className="muted">Pesquisa de previsão e paper trading de BTCUSDT 5m</p>
+          <h1>Crypto Crawling</h1>
+          <p className="muted">Pesquisa e paper trading. A Aranha lê o gráfico. Nenhuma ordem é enviada.</p>
         </div>
         <div className="pills">
           <span className="pill">Conexão <strong className={connected ? 'ok' : 'bad'}>{connected ? 'ligada' : 'desligada'}</strong></span>
@@ -192,7 +194,7 @@ export default function App() {
       </header>
 
       <div className="tabs" role="tablist">
-        {([['aranha', 'Aranha'], ['mercado', 'Mercado'], ['paper', 'Paper'], ['backtest', 'Backtest']] as const).map(([id, label]) => (
+        {([['aranha', 'Aranha'], ['mercado', 'Mercado'], ['paper', 'Paper'], ['backtest', 'Backtest'], ['pesquisa', 'Pesquisa']] as const).map(([id, label]) => (
           <button key={id} className="tab" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
@@ -268,7 +270,9 @@ export default function App() {
         </section>
       )}
 
-      {tab === 'aranha' && <AranhaLive payload={live} />}
+      {tab === 'aranha' && <Desk live={live} paper={paper} />}
+
+      {tab === 'pesquisa' && <AranhaPanel />}
 
       {tab === 'backtest' && (
         <section className="card">

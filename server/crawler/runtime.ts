@@ -21,7 +21,7 @@ import { scoreCoin, toCanonical } from './score';
 import { appendJournalLines } from './journal';
 import { rankingLines, wallLine } from './journal-records';
 import { buildCoinView, type CoinView, type LiveFeedItem, type PaperMark } from './live';
-import type { BookWall, CoinScore, CrawlerRow, CrawlerSnapshot, MarketBar, OnchainEvent, WhalePrint } from './types';
+import type { BookWall, CoinScore, CrawlerRow, CrawlerSnapshot, DepthBook, MarketBar, OnchainEvent, TapePrint, WhalePrint } from './types';
 
 export interface CrawlerForecaster {
   ready(): boolean;
@@ -35,8 +35,10 @@ export class CrawlerRuntime {
   private timer: NodeJS.Timeout | null = null;
   private socket: WebSocket | null = null;
   private readonly bars = new Map<string, MarketBar[]>();
-  private readonly tickers = new Map<string, { lastPrice: number; change24hPct: number; quoteVolume: number }>();
+  private readonly tickers = new Map<string, { lastPrice: number; change24hPct: number; quoteVolume: number; high24h: number | null; low24h: number | null }>();
   private readonly prints = new Map<string, WhalePrint[]>();
+  private readonly books = new Map<string, DepthBook>();
+  private tape: TapePrint[] = [];
   private whales: WhalePrint[] = [];
   private walls: BookWall[] = [];
   private onchain: OnchainEvent[] = [];
@@ -73,6 +75,11 @@ export class CrawlerRuntime {
     rows: CrawlerRow[];
     feed: LiveFeedItem[];
     charts: Record<string, CoinView>;
+    books: Record<string, DepthBook>;
+    tape: TapePrint[];
+    whales: WhalePrint[];
+    onchain: OnchainEvent[];
+    forecastBps: Record<string, number | null>;
   } {
     const paperSymbol = paper?.symbol ?? 'BTCUSDT';
     const charts: Record<string, CoinView> = {};
@@ -91,6 +98,10 @@ export class CrawlerRuntime {
       charts[symbol] = view;
       this.rememberFeed(view.feed);
     }
+    const books: Record<string, DepthBook> = {};
+    for (const [symbol, book] of this.books) books[symbol] = book;
+    const forecastBps: Record<string, number | null> = {};
+    for (const [symbol, value] of this.forecasts) forecastBps[symbol] = value;
     return {
       updatedAt: this.updatedAt,
       disclaimer: 'A Aranha lê o gráfico ao vivo. Nenhuma ordem real é enviada. O score não é probabilidade de ganho.',
@@ -98,6 +109,11 @@ export class CrawlerRuntime {
       paperSymbol,
       rows: this.rows,
       feed: this.feed,
+      books,
+      tape: this.tape.slice(0, 40),
+      whales: this.whales.slice(0, 20),
+      onchain: this.onchain.slice(0, 20),
+      forecastBps,
       charts
     };
   }
@@ -250,6 +266,8 @@ export class CrawlerRuntime {
       lastPrice: ticker?.lastPrice || lastPrice,
       change24hPct: ticker?.change24hPct ?? null,
       quoteVolume24h: ticker?.quoteVolume ?? null,
+      high24h: ticker?.high24h ?? null,
+      low24h: ticker?.low24h ?? null,
       regime,
       kronos,
       kronosBps: null,
@@ -336,7 +354,9 @@ export class CrawlerRuntime {
       this.tickers.set(ticker.symbol, {
         lastPrice: ticker.lastPrice,
         change24hPct: ticker.priceChangePercent,
-        quoteVolume: ticker.quoteVolume
+        quoteVolume: ticker.quoteVolume,
+        high24h: ticker.highPrice,
+        low24h: ticker.lowPrice
       });
     }
     const selected = selectUniverse(tickers, this.config.universeSize).map(ticker => ticker.symbol);
@@ -391,6 +411,7 @@ export class CrawlerRuntime {
       if (!response.ok) return;
       const book = parseDepth(await response.json());
       if (!book) return;
+      this.books.set(symbol, { bids: book.bids.slice(0, 20), asks: book.asks.slice(0, 20) });
       const next = findWalls(symbol, book);
       this.walls = [...next, ...this.walls.filter(wall => wall.symbol !== symbol)].slice(0, 40);
     } catch {
@@ -424,6 +445,16 @@ export class CrawlerRuntime {
   private onSocket(message: unknown): void {
     const trade = parseAggTrade(message);
     if (trade) {
+      this.tape.unshift({
+        symbol: trade.symbol,
+        time: new Date(trade.time).toISOString(),
+        price: trade.price,
+        quantity: trade.quantity,
+        usd: trade.price * trade.quantity,
+        side: trade.buyerIsMaker ? 'venda' : 'compra'
+      });
+      this.tape = this.tape.slice(0, 80);
+      this.touch();
       const print = toWhalePrint(trade, this.config.whaleUsd);
       if (print) {
         this.notePrint(print);

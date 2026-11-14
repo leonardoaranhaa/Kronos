@@ -1,6 +1,6 @@
-# Kronos — pesquisa e paper
+# Crypto Crawling
 
-Ferramenta local para estudar o modelo público [Kronos](https://github.com/shiyu-coder/Kronos) em candles de BTCUSDT. Ela baixa dados públicos, pede uma previsão ao modelo oficial e transforma essa previsão em um sinal de **compra**, **venda** ou **manter**. O sinal pode ser simulado com taxas. Nada disso envia uma ordem.
+Plataforma local de pesquisa e paper trading. Ela estuda o modelo público [Kronos](https://github.com/shiyu-coder/Kronos) em candles de BTCUSDT, baixa dados públicos, pede uma previsão ao modelo oficial e transforma essa previsão em um sinal de **compra**, **venda** ou **manter**. O sinal pode ser simulado com taxas. Nada disso envia uma ordem. A leitura do gráfico fica com a Aranha.
 
 Não há taxa de acerto prometida. O número antigo de 97,48% não foi medido: o script que o produzia sorteava vitórias. Esse script foi desligado. O resultado que vale é o arquivo gerado por `npm run backtest`.
 
