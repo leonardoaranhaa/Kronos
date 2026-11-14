@@ -13,6 +13,10 @@ import { backfillGap } from './gap-backfill';
 import { getHealthSnapshot } from './health';
 import { computeIndicators } from './indicators';
 import { decideSignal, ResearchSignal } from './signals';
+import { researchAction } from './research-eval';
+import { loadPromotion, selectPaperStrategy } from './paper-strategy';
+import { SAMPLE_COUNT } from './research-protocol';
+import { sampleStd } from './research-stats';
 import { readResearchConfig } from './research-config';
 import { describeHistory, createHistoryWindow, preloadHistory, acceptCandle } from './history-window';
 import { PaperSession } from './paper-session';
@@ -38,7 +42,16 @@ const SYMBOL = (process.env.SYMBOL || 'BTCUSDT').toUpperCase();
 const TIMEFRAME = process.env.TIMEFRAME || '5m';
 const config = readResearchConfig();
 const aranha = new AranhaRuntime();
-const bridge = new KronosBridge();
+const paperChoice = selectPaperStrategy(
+  process.env.PAPER_STRATEGY,
+  loadPromotion('reports/research-m2.json'),
+  { symbol: SYMBOL, interval: TIMEFRAME }
+);
+console.log(`[Paper] ${paperChoice.reason}`);
+
+const bridge = new KronosBridge(paperChoice.id === 'pesquisa'
+  ? { sampleCount: SAMPLE_COUNT, horizon: 6, maxContext: 256 }
+  : {});
 const crawler = new CrawlerRuntime(readCrawlerConfig(), {
   forecaster: {
     ready: () => bridge.getStatus() === 'ready',
@@ -59,6 +72,7 @@ const session = new PaperSession(
 let latestIndicators: TechnicalIndicators | null = null;
 let latestCandle: CanonicalCandle | null = null;
 let latestForecast: number[] = [];
+let latestDistribution: { p10?: number[]; p90?: number[]; pUp?: number } | null = null;
 let startupInferenceRequested = false;
 const decisions = new Map<number, { close: number; indicators: TechnicalIndicators }>();
 let ingestQueue = Promise.resolve();
@@ -104,6 +118,8 @@ function snapshotPayload() {
     candle: latestCandle,
     indicators: latestIndicators,
     forecast: latestForecast,
+    quantileBand: latestDistribution ? { p10: latestDistribution.p10, p90: latestDistribution.p90 } : undefined,
+    pUp: latestDistribution?.pUp,
     paper: session.getSnapshot(),
     history: describeHistory(history)
   };
@@ -199,18 +215,46 @@ bridge.on('model-error', data => broadcast({ type: 'KRONOS_MODEL_ERROR', payload
 bridge.on('prediction', prediction => {
   const predicted = Array.isArray(prediction.predictions) ? prediction.predictions as number[] : [];
   latestForecast = predicted;
+  const band = prediction.quantileBand as { p10?: number[]; p90?: number[] } | undefined;
+  latestDistribution = {
+    p10: band?.p10,
+    p90: band?.p90,
+    pUp: typeof prediction.pUp === 'number' ? prediction.pUp : undefined
+  };
   const decisionOpenTime = Number(prediction.timestamp);
   const decision = decisions.get(decisionOpenTime);
   let signal: ResearchSignal | null = null;
   if (decision) {
-    signal = decideSignal({
-      close: decision.close,
-      predictedCloses: predicted,
-      ema9: decision.indicators.ema9,
-      ema20: decision.indicators.ema20,
-      rsi14: decision.indicators.rsi14,
-      atr14: decision.indicators.atr14
-    }, config.signal);
+    if (paperChoice.id === 'pesquisa') {
+      const sampleEnds = Array.isArray(prediction.sampleEnds) ? prediction.sampleEnds as number[] : [];
+      const meanEnd = predicted[predicted.length - 1];
+      const predictedReturnBps = ((meanEnd - decision.close) / decision.close) * 10_000;
+      const dispersionBps = sampleStd(sampleEnds.map(value => ((value - decision.close) / decision.close) * 10_000));
+      const action = researchAction({
+        close: decision.close,
+        predictedReturnBps,
+        dispersionBps,
+        atr: decision.indicators.atr14,
+        ema9: decision.indicators.ema9,
+        ema20: decision.indicators.ema20
+      }, paperChoice.params);
+      signal = {
+        action,
+        reason: `Estratégia pesquisa: ${action === 'BUY' ? 'compra' : action === 'SELL' ? 'venda' : 'manter'}. Movimento previsto ${predictedReturnBps.toFixed(1)} bps, dispersão ${dispersionBps.toFixed(1)} bps.`,
+        forecastReturnBps: predictedReturnBps,
+        heuristicScore: 0,
+        indicators: decision.indicators
+      };
+    } else {
+      signal = decideSignal({
+        close: decision.close,
+        predictedCloses: predicted,
+        ema9: decision.indicators.ema9,
+        ema20: decision.indicators.ema20,
+        rsi14: decision.indicators.rsi14,
+        atr14: decision.indicators.atr14
+      }, config.signal);
+    }
     aranha.noteSignal(signal);
     const aranhaView = aranha.view();
     signal = aranhaView.usedSignal ?? signal;
@@ -399,6 +443,24 @@ app.get('/api/aranha-backtest', (_req, res) => {
     return;
   }
   res.type('json').send(readFileSync(reportPath, 'utf8'));
+});
+
+app.get('/api/research-m3', (_req, res) => {
+  const path = 'reports/research-m3.json';
+  if (!existsSync(path)) {
+    res.status(404).json({ error: 'Ainda não há a comparação do patch. Rode npm run research:m3.' });
+    return;
+  }
+  res.type('json').send(readFileSync(path, 'utf8'));
+});
+
+app.get('/api/research', (_req, res) => {
+  const path = 'reports/research-m2.json';
+  if (!existsSync(path)) {
+    res.status(404).json({ error: 'Ainda não há pesquisa. Rode npm run research depois de importar os candles.' });
+    return;
+  }
+  res.type('json').send(readFileSync(path, 'utf8'));
 });
 
 app.get('/api/backtest', (_req, res) => {

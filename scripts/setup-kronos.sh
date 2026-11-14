@@ -23,7 +23,15 @@ if [[ ! -d "${TARGET_DIR}/.git" ]]; then
 fi
 
 git -C "${TARGET_DIR}" fetch origin master
-git -C "${TARGET_DIR}" checkout --detach "${UPSTREAM_COMMIT}"
+# The pin stays 67b630e. Local patches are re-applied after that checkout.
+git -C "${TARGET_DIR}" checkout --detach --force "${UPSTREAM_COMMIT}"
+shopt -s nullglob
+for patch in "${ROOT_DIR}/patches/"*.patch; do
+  git -C "${TARGET_DIR}" apply --check "${patch}"
+  git -C "${TARGET_DIR}" apply "${patch}"
+  echo "Applied $(basename "${patch}")"
+done
+shopt -u nullglob
 
 if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
   if ! python3 -m venv "${VENV_DIR}"; then
