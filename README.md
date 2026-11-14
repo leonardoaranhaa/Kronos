@@ -93,6 +93,12 @@ O registro fica em `data/audit/paper.jsonl`. O estado da carteira simulada fica 
 
 Telegram é opcional. Preencha `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID` para receber um aviso. Sem os dois, nenhum aviso é enviado. A mensagem diz que nenhuma ordem real foi enviada.
 
+## Pesquisa de vantagem
+
+`npm run research` repete o estudo do milestone 2. Ele precisa dos candles importados de BTCUSDT, ETHUSDT e SOLUSDT em 5m, 1h e 4h desde 12 de novembro de 2025, e do modelo oficial. As previsões ficam em cache em `data/research-cache/`, então uma segunda execução não refaz o que já foi calculado.
+
+O corte fora da amostra é 12 de agosto de 2026 e está fixo no código. O treino só olha BTCUSDT de 1 hora antes desse corte. O resultado sai em `reports/research-m2.md`, com um resumo no começo e as tabelas em seguida. A aba Pesquisa do painel lê o mesmo relatório. Uma estratégia nova só fica disponível no paper se aquele teste principal passar; o padrão continua sendo a regra atual.
+
 ## Backtest
 
 O modelo não é chamado em todo candle de 5 minutos. O padrão é uma decisão a cada 12 candles, cerca de uma hora, com 400 candles de contexto e horizonte de 5. Entre decisões, a última posição simulada continua aberta. O arquivo de relatório repete esse fato e traz acurácia direcional, erro absoluto médio, retorno, drawdown, taxa de acerto, número de trades e Sharpe.

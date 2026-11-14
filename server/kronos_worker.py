@@ -60,8 +60,10 @@ class KronosWorker:
         self.predictor = KronosPredictor(
             self.model, self.tokenizer, device=self.device, max_context=self.max_context
         )
+        self.sample_count = 1
 
-    def predict(self, candles, interval, horizon, timestamp):
+    def predict(self, candles, interval, horizon, timestamp, sample_count=1):
+        self.sample_count = max(1, min(8, int(sample_count)))
         if interval not in FREQ_MAP:
             raise ValueError(f"Unsupported interval for official Kronos adapter: {interval}")
         if len(candles) < 32:
@@ -103,16 +105,52 @@ class KronosWorker:
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
 
-        prediction = self.predictor.predict(
-            df=frame,
-            x_timestamp=timestamps,
-            y_timestamp=future_timestamps,
-            pred_len=horizon,
-            T=1.0,
-            top_p=0.9,
-            sample_count=1,
-            verbose=False
-        )
+        sample_count = self.sample_count
+        captured = {}
+        # Upstream averages sample_count paths before returning them. The mean
+        # stays the official forecast. The raw paths are kept only so research
+        # can measure dispersion. The live path uses sample_count 1 and does
+        # not patch anything.
+        if sample_count > 1:
+            import model.kronos as kronos_module
+            original_mean = kronos_module.np.mean
+
+            def capturing_mean(values, axis=None, *args, **kwargs):
+                if (
+                    isinstance(values, np.ndarray)
+                    and values.ndim == 4
+                    and axis == 1
+                    and values.shape[1] == sample_count
+                ):
+                    captured["samples"] = np.array(values, copy=True)
+                return original_mean(values, axis=axis, *args, **kwargs)
+
+            kronos_module.np.mean = capturing_mean
+        try:
+            prediction = self.predictor.predict(
+                df=frame,
+                x_timestamp=timestamps,
+                y_timestamp=future_timestamps,
+                pred_len=horizon,
+                T=1.0,
+                top_p=0.9,
+                sample_count=sample_count,
+                verbose=False
+            )
+        finally:
+            if sample_count > 1:
+                kronos_module.np.mean = original_mean
+
+        mean_closes = [float(value) for value in prediction["close"].tolist()]
+        sample_ends = []
+        if captured.get("samples") is not None:
+            values = frame[["open", "high", "low", "close", "volume", "amount"]].to_numpy(dtype=np.float64)
+            center = values.mean(axis=0)
+            scale = values.std(axis=0)
+            # Close is column 3. The last `horizon` steps are the forecast.
+            future = captured["samples"][0, :, -horizon:, 3]
+            denormalized = future * (scale[3] + 1e-5) + center[3]
+            sample_ends = [float(value) for value in denormalized[:, -1]]
 
         return {
             "type": "PREDICTION_RESULT",
@@ -122,7 +160,9 @@ class KronosWorker:
             "tokenizerId": TOKENIZER_ID,
             "upstreamCommit": UPSTREAM_COMMIT,
             "device": self.device,
-            "predictions": [float(value) for value in prediction["close"].tolist()],
+            "sampleCount": sample_count,
+            "predictions": mean_closes,
+            "sampleEnds": sample_ends,
             "forecast": prediction.reset_index(drop=True).to_dict(orient="records")
         }
 
@@ -154,7 +194,8 @@ def main():
                 message.get("candles", []),
                 str(message.get("interval", "5m")),
                 max(1, min(64, int(message.get("horizon", 5)))),
-                int(message.get("timestamp", 0))
+                int(message.get("timestamp", 0)),
+                max(1, min(8, int(message.get("sampleCount", 1))))
             )
             result["requestId"] = message.get("requestId")
             send(result)
