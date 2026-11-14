@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Crypto Crawling — servidor</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Crypto Crawling</h1>
+      <p>Endereço do servidor de pesquisa. O padrão é o computador local. Um link público <code>https://….trycloudflare.com</code> também serve, se ele entregar <code>/api</code> e <code>/ws</code>.</p>
+      <form id="form">
+        <label for="server">URL do servidor</label>
+        <input id="server" name="server" type="url" required spellcheck="false" placeholder="http://localhost:3000" />
+        <button type="submit">Guardar</button>
+      </form>
+      <p id="status" role="status"></p>
+      <p class="note">A extensão só lê. Ela não envia ordens e não pede chave da corretora.</p>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
