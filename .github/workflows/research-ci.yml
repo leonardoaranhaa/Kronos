@@ -6,6 +6,7 @@ on:
       - main
       - engineering/p1-data-integrity
       - engineering/foundation-audit
+      - cursor/research-paper-milestone-6762
   pull_request:
     branches:
       - main
