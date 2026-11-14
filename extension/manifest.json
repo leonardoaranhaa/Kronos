@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Crypto Crawling",
+  "description": "Painel de pesquisa ao lado da Binance e do TradingView. Só leitura. Não envia ordens.",
+  "version": "1.0.0",
+  "action": {
+    "default_title": "Abrir Crypto Crawling"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["sidePanel", "storage", "tabs"],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://*.trycloudflare.com/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ]
+}

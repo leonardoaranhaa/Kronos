@@ -133,10 +133,15 @@ npm run backtest:crawler
 
 Ele responde se o topo da lista rendeu mais que a média das moedas nas horas seguintes. A cadeia não entra nesse estudo.
 
+## Extensão do Chrome
+
+Há um painel lateral, só de leitura, para quem está numa aba da Binance ou do TradingView. A instalação em modo do desenvolvedor está em [extension/README.md](extension/README.md), em poucos passos. O arquivo zip sai com `bash scripts/pack-extension.sh`.
+
 ## Layout
 
 ```text
 src/client/     painel
+extension/      painel lateral do Chrome
 server/         dados, modelo, sinal, paper e backtest
 shared/         tipos
 reports/        último backtest, quando você rodar o comando

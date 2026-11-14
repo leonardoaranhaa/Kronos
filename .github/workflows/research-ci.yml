@@ -12,6 +12,7 @@ on:
       - cursor/aranha-digital-ce63
       - cursor/crypto-crawler-ce63
       - cursor/chart-dashboard-ce63
+      - cursor/chrome-sidepanel-ce63
   pull_request:
     branches:
       - main
