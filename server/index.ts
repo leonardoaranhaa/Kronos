@@ -3,12 +3,20 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { KronosBridge } from './kronos-bridge';
 import { MarketFeed } from './market-feed';
-import { CanonicalCandle } from '../shared/types';
-import { auditCandleSeries, validateCanonicalCandle } from './candle-validation';
+import { Candle, CanonicalCandle, TechnicalIndicators } from '../shared/types';
+import { auditCandleSeries, intervalToMilliseconds, validateCanonicalCandle } from './candle-validation';
+import { backfillGap } from './gap-backfill';
 import { getHealthSnapshot } from './health';
+import { computeIndicators } from './indicators';
+import { decideSignal, ResearchSignal } from './signals';
+import { readResearchConfig } from './research-config';
+import { describeHistory, createHistoryWindow, preloadHistory, acceptCandle } from './history-window';
+import { PaperSession } from './paper-session';
+import { formatResearchAlert, sendTelegramMessage } from './telegram';
 
 loadEnvFile();
 
@@ -23,17 +31,64 @@ const PORT = Number(process.env.PORT || 3000);
 const FEED_MODE = (process.env.FEED_MODE || 'binance') as 'replay' | 'binance';
 const SYMBOL = (process.env.SYMBOL || 'BTCUSDT').toUpperCase();
 const TIMEFRAME = process.env.TIMEFRAME || '5m';
+const config = readResearchConfig();
 
 const bridge = new KronosBridge();
 const feed = new MarketFeed(FEED_MODE);
-const candleHistory: CanonicalCandle[] = [];
 const MAX_HISTORY = 600;
+let history = createHistoryWindow(MAX_HISTORY);
+const session = new PaperSession(
+  config.costs,
+  config.breaker,
+  config.startingEquity,
+  config.auditPath,
+  config.statePath
+);
+
+let latestIndicators: TechnicalIndicators | null = null;
+let latestCandle: CanonicalCandle | null = null;
+let latestForecast: number[] = [];
+let startupInferenceRequested = false;
+const decisions = new Map<number, { close: number; indicators: TechnicalIndicators }>();
+let ingestQueue = Promise.resolve();
 
 function broadcast(data: unknown) {
   const payload = JSON.stringify(data);
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) client.send(payload);
   });
+}
+
+function toIndicatorCandle(candle: CanonicalCandle): Candle {
+  return {
+    timestamp: candle.openTime,
+    open: candle.open,
+    high: candle.high,
+    low: candle.low,
+    close: candle.close,
+    volume: candle.volume
+  };
+}
+
+function snapshotPayload() {
+  return {
+    candle: latestCandle,
+    indicators: latestIndicators,
+    forecast: latestForecast,
+    paper: session.getSnapshot(),
+    history: describeHistory(history)
+  };
+}
+
+async function notify(text: string): Promise<void> {
+  try {
+    await sendTelegramMessage(text, {
+      token: process.env.TELEGRAM_BOT_TOKEN,
+      chatId: process.env.TELEGRAM_CHAT_ID
+    });
+  } catch (error) {
+    console.error('[Telegram]', error instanceof Error ? error.message : error);
+  }
 }
 
 async function loadHistoricalData(): Promise<void> {
@@ -57,36 +112,157 @@ async function loadHistoricalData(): Promise<void> {
   if (FEED_MODE === 'replay') {
     feed.setReplayCandles(candles);
   } else {
-    candleHistory.push(...candles.slice(-MAX_HISTORY));
+    history = preloadHistory(history, candles);
+    latestCandle = history.retained[history.retained.length - 1] ?? null;
+    if (history.retained.length) {
+      latestIndicators = computeIndicators(history.retained.map(toIndicatorCandle));
+    }
   }
-  console.log(`[Data] Validated ${candles.length} historical candles; preloaded ${candleHistory.length} into live-feed history`);
+  console.log(`[Data] Validated ${candles.length} historical candles; retained ${history.retained.length}; accepted ${history.acceptedCount}`);
 }
 
-bridge.on('model-status', data => broadcast({ type: 'KRONOS_MODEL_STATUS', payload: data }));
+/** Pulls completed public candles that closed after the snapshot and before the process started. */
+async function catchUpHistory(): Promise<void> {
+  if (FEED_MODE !== 'binance' || history.retained.length === 0) return;
+  const last = history.retained[history.retained.length - 1];
+  const intervalMs = intervalToMilliseconds(last.interval);
+  if (intervalMs === null) return;
+  const filled = await backfillGap({
+    lastOpenTime: last.openTime,
+    nextOpenTime: Date.now(),
+    symbol: last.symbol,
+    interval: last.interval,
+    intervalMs,
+    restBaseUrl: process.env.BINANCE_REST_BASE_URL || 'https://data-api.binance.vision'
+  });
+  for (const candle of filled) {
+    history = acceptCandle(history, candle).window;
+  }
+  latestCandle = history.retained[history.retained.length - 1] ?? null;
+  if (history.retained.length) {
+    latestIndicators = computeIndicators(history.retained.map(toIndicatorCandle));
+  }
+  if (filled.length) console.log(`[Data] Caught up ${filled.length} completed candles from the public REST API`);
+}
+
+function rememberDecision(candle: CanonicalCandle, indicators: TechnicalIndicators): void {
+  decisions.set(candle.openTime, { close: candle.close, indicators });
+  if (decisions.size > 8) {
+    const oldest = decisions.keys().next().value;
+    if (oldest !== undefined) decisions.delete(oldest);
+  }
+}
+
+function requestForecast(candle: CanonicalCandle, indicators: TechnicalIndicators): void {
+  rememberDecision(candle, indicators);
+  if (bridge.processTick(candle, history.retained)) startupInferenceRequested = true;
+}
+
+bridge.on('model-status', data => {
+  broadcast({ type: 'KRONOS_MODEL_STATUS', payload: data });
+  if (data.status === 'READY' && !startupInferenceRequested && latestCandle && latestIndicators && history.retained.length >= 32) {
+    requestForecast(latestCandle, latestIndicators);
+  }
+});
 bridge.on('model-error', data => broadcast({ type: 'KRONOS_MODEL_ERROR', payload: data }));
-bridge.on('prediction', prediction => broadcast({ type: 'KRONOS_AI_PREDICTION', payload: prediction }));
+bridge.on('prediction', prediction => {
+  const predicted = Array.isArray(prediction.predictions) ? prediction.predictions as number[] : [];
+  latestForecast = predicted;
+  const decisionOpenTime = Number(prediction.timestamp);
+  const decision = decisions.get(decisionOpenTime);
+  let signal: ResearchSignal | null = null;
+  if (decision) {
+    signal = decideSignal({
+      close: decision.close,
+      predictedCloses: predicted,
+      ema9: decision.indicators.ema9,
+      ema20: decision.indicators.ema20,
+      rsi14: decision.indicators.rsi14,
+      atr14: decision.indicators.atr14
+    }, config.signal);
+    session.queueSignal(signal, decisionOpenTime, Date.now());
+    decisions.delete(decisionOpenTime);
+    if (signal.action !== 'HOLD') {
+      void notify(formatResearchAlert([
+        `Par: ${SYMBOL}`,
+        `Sinal: ${signal.action}`,
+        `Referência: ${decision.close}`,
+        `Motivo: ${signal.reason}`
+      ]));
+    }
+  }
+  broadcast({
+    type: 'KRONOS_AI_PREDICTION',
+    payload: { ...prediction, predictedCloses: predicted, signal }
+  });
+  broadcast({ type: 'PAPER_STATE', payload: snapshotPayload() });
+});
 
 feed.on('status', data => broadcast({ type: 'FEED_STATUS', payload: data }));
 feed.on('feed-error', data => broadcast({ type: 'FEED_ERROR', payload: data }));
+feed.on('heartbeat', (data: { at?: number }) => session.noteFeedHeartbeat(data.at ?? Date.now()));
 
 feed.on('candle', (candle: CanonicalCandle) => {
-  const last = candleHistory[candleHistory.length - 1];
+  ingestQueue = ingestQueue.then(() => ingestCandle(candle)).catch(error => {
+    console.error('[Data] Candle ingest failed', error instanceof Error ? error.message : error);
+  });
+});
+
+async function ingestCandle(candle: CanonicalCandle): Promise<void> {
+  const validation = validateCanonicalCandle(candle);
+  if (!validation.valid) {
+    broadcast({ type: 'DATA_QUALITY_WARNING', payload: { errors: validation.errors } });
+    return;
+  }
+  const intervalMs = intervalToMilliseconds(candle.interval);
+  let last = history.retained[history.retained.length - 1];
   if (last && candle.openTime <= last.openTime) {
     broadcast({ type: 'DATA_QUALITY_WARNING', payload: { message: 'Duplicate or out-of-order candle ignored', openTime: candle.openTime } });
     return;
   }
+  if (last && intervalMs !== null && candle.openTime > last.openTime + intervalMs) {
+    try {
+      const filled = await backfillGap({
+        lastOpenTime: last.openTime,
+        nextOpenTime: candle.openTime,
+        symbol: candle.symbol,
+        interval: candle.interval,
+        intervalMs,
+        restBaseUrl: process.env.BINANCE_REST_BASE_URL || 'https://data-api.binance.vision'
+      });
+      for (const item of filled) history = acceptCandle(history, item).window;
+      if (filled.length) console.log(`[Data] Backfilled ${filled.length} candles before ${candle.openTime}`);
+    } catch (error) {
+      broadcast({ type: 'DATA_QUALITY_WARNING', payload: { message: 'Could not backfill the candle gap', error: error instanceof Error ? error.message : String(error) } });
+    }
+    last = history.retained[history.retained.length - 1];
+    if (last && intervalMs !== null && candle.openTime !== last.openTime + intervalMs) {
+      broadcast({ type: 'DATA_QUALITY_WARNING', payload: { message: 'Live candle left a gap and was not added', openTime: candle.openTime, lastOpenTime: last.openTime } });
+      return;
+    }
+  }
 
-  candleHistory.push(candle);
-  if (candleHistory.length > MAX_HISTORY) candleHistory.shift();
-
-  const quality = auditCandleSeries(candleHistory);
+  const accepted = acceptCandle(history, candle);
+  history = accepted.window;
+  latestCandle = candle;
+  const quality = auditCandleSeries(history.retained);
   if (!quality.valid) {
     broadcast({ type: 'DATA_QUALITY_WARNING', payload: { errors: quality.errors.slice(0, 10) } });
-  } else {
-    const indicators = bridge.processTick(candle, candleHistory);
-    broadcast({ type: 'MARKET_TICK', payload: { candle, indicators } });
+    broadcast({ type: 'MARKET_TICK', payload: snapshotPayload() });
+    return;
   }
-});
+
+  latestIndicators = computeIndicators(history.retained.map(toIndicatorCandle));
+  const step = session.onCandle(candle, Date.now());
+  if (step.flattened) {
+    void notify(formatResearchAlert([
+      'Trava de risco disparada. A posição simulada foi encerrada.',
+      session.getSnapshot().breaker.reason
+    ]));
+  }
+  requestForecast(candle, latestIndicators);
+  broadcast({ type: 'MARKET_TICK', payload: snapshotPayload() });
+}
 
 app.get('/api/health', (_req, res) => {
   const feedStatus = feed.getStatus();
@@ -99,20 +275,36 @@ app.get('/api/health', (_req, res) => {
     modelStatus,
     symbol: SYMBOL,
     timeframe: TIMEFRAME,
-    historyCount: candleHistory.length
+    ...describeHistory(history)
   });
 });
 
 app.get('/api/history', (_req, res) => {
-  res.json({ candles: candleHistory.slice(-100) });
+  res.json({ candles: history.retained.slice(-180) });
+});
+
+app.get('/api/paper', (_req, res) => {
+  res.json(snapshotPayload());
+});
+
+app.get('/api/backtest', (_req, res) => {
+  if (!existsSync(config.reportPath)) {
+    res.status(404).json({
+      error: 'Ainda não há relatório. Rode npm run backtest depois de importar os candles.'
+    });
+    return;
+  }
+  res.type('json').send(readFileSync(config.reportPath, 'utf8'));
 });
 
 async function bootstrap() {
   await loadHistoricalData();
+  await catchUpHistory();
   bridge.start();
   feed.start();
   httpServer.listen(PORT, () => {
     console.log(`[Kronos Research Server] Listening on http://localhost:${PORT}`);
+    console.log('[Kronos Research Server] Paper trading only. No orders are submitted.');
   });
 }
 

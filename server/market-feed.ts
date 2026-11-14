@@ -91,6 +91,7 @@ export class MarketFeed extends EventEmitter {
       this.emit('status', { status: this.status, source: 'historical-replay', replayedCount: this.replayIndex });
       return;
     }
+    this.emit('heartbeat', { at: Date.now() });
     this.emit('candle', this.replayCandles[this.replayIndex]);
     this.replayIndex += 1;
   }
@@ -104,9 +105,11 @@ export class MarketFeed extends EventEmitter {
     this.socket.on('open', () => {
       this.reconnectAttempt = 0;
       this.status = 'connected';
+      this.emit('heartbeat', { at: Date.now() });
       this.emit('status', { status: this.status, source: 'binance', symbol: this.symbol, interval: this.interval });
     });
     this.socket.on('message', raw => {
+      this.emit('heartbeat', { at: Date.now() });
       try {
         const candle = parseBinanceKline(JSON.parse(raw.toString()));
         if (!candle) return;

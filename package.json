@@ -10,12 +10,19 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test:candles": "tsx --test tests/candle-validation.test.ts",
-    "test:monte-carlo": "tsx server/monte_carlo.ts",
     "import:binance": "tsx server/binance-historical-import.ts",
     "test:binance": "tsx --test tests/binance-feed.test.ts",
     "test:replay": "tsx --test tests/historical-replay.test.ts",
-    "test:import": "tsx --test tests/binance-import.test.ts",
-    "test:health": "tsx --test tests/health.test.ts"
+    "test:import": "tsx --test tests/binance-import.test.ts tests/gap-backfill.test.ts",
+    "test:health": "tsx --test tests/health.test.ts",
+    "test:history": "tsx --test tests/history-window.test.ts",
+    "test:signals": "tsx --test tests/signals.test.ts",
+    "test:breaker": "tsx --test tests/circuit-breaker.test.ts",
+    "test:paper": "tsx --test tests/trading-math.test.ts tests/paper-broker.test.ts tests/telegram.test.ts",
+    "test:backtest": "tsx --test tests/backtest.test.ts",
+    "test": "npm run test:candles && npm run test:binance && npm run test:import && npm run test:replay && npm run test:health && npm run test:history && npm run test:signals && npm run test:breaker && npm run test:paper && npm run test:backtest",
+    "check": "npm test && npm run build && python3 -m py_compile server/kronos_worker.py && bash -n scripts/setup-kronos.sh",
+    "backtest": "tsx server/backtest-cli.ts"
   },
   "dependencies": {
     "express": "^4.19.2",
