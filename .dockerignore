@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.venv
+venv
+data
+external
+.env
+.env.*
+*.log
+coverage
+.DS_Store
