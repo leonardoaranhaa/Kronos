@@ -6,6 +6,7 @@ import Desk from './Desk';
 import AranhaPanel from './AranhaPanel';
 import { CanonicalCandle, TechnicalIndicators } from '../../shared/types';
 import type { ResearchSignal } from '../../server/signals';
+import { researchSocketUrl } from './socket-url';
 
 type Tab = 'mercado' | 'paper' | 'backtest' | 'aranha' | 'pesquisa';
 
@@ -180,7 +181,7 @@ export default function App() {
       else setBacktest(body);
     }).catch(() => setBacktestError('Não foi possível ler o relatório de backtest.'));
 
-    const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}:3000`);
+    const socket = new WebSocket(researchSocketUrl(location));
     socket.onopen = () => setConnected(true);
     socket.onclose = () => setConnected(false);
     socket.onmessage = event => {

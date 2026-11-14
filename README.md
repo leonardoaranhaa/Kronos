@@ -164,6 +164,30 @@ Sem `time`, `from`, `to` e `interval` devolvem os marcadores: as aberturas de ve
 
 Há um painel lateral, só de leitura, para quem está numa aba da Binance ou do TradingView. A instalação em modo do desenvolvedor está em [extension/README.md](extension/README.md), em poucos passos. O arquivo zip sai com `bash scripts/pack-extension.sh`.
 
+## Deploy no Fly.io
+
+O deploy público fica em São Paulo (`gru`). A Binance bloqueia vários IPs dos Estados Unidos, então a máquina não pode subir em `iad` ou `ord`. Quem roda o `flyctl` é você, no seu computador. Este repositório não guarda token e não envia o deploy sozinho.
+
+A imagem traz o painel, o servidor, o coletor da Aranha, o crawler e o worker do Kronos-small. O torch é só de CPU, para a imagem não levar CUDA. O patch `patches/kronos-rope-425.patch` entra no código do Kronos no build, como o `scripts/setup-kronos.sh` faz na máquina local. Os pesos (`NeoQuasar/Kronos-small` e o tokenizer) baixam no primeiro start e ficam em `/data/huggingface`, no volume.
+
+Um processo supervisor (`scripts/supervise.mjs`) sobe o servidor e sobe de novo se ele cair ou se `/api/health` parar de responder. A Aranha e o crawler nascem dentro desse servidor. Eles continuam gravando no volume. O que fica fechado é a porta pública: com `PUBLIC_READONLY=1` o servidor só aceita GET, HEAD e o WebSocket `/ws`. POST, PUT, PATCH e DELETE voltam 405. Caminhos de ordem ou admin voltam 403. Se existir chave de corretora no ambiente, o processo apaga essas variáveis ao subir. O módulo antigo de ordem não entra na imagem.
+
+`/api/health` no modo público responde HTTP 200 assim que o processo está de pé, para a Fly não reiniciar a máquina enquanto o modelo baixa. O JSON continua com `ready: false` até o feed e o modelo estarem prontos.
+
+A máquina sugerida é `shared-cpu-2x` com 2 GB. É o bastante para o Kronos-small em CPU na maior parte dos casos. Se uma previsão for morta por falta de memória, troque `memory` no `fly.toml` para `"4gb"`. Uma máquina dessa, ligada o tempo todo, fica em torno de US$ 15 a US$ 25 por mês, mais cerca de US$ 0,15 por GB do volume (10 GB ficam perto de US$ 1,50). O preço muda. A tabela oficial é [fly.io/docs/about/pricing](https://fly.io/docs/about/pricing/).
+
+O nome padrão do app é `crypto-crawling`. Se esse nome já existir, edite `app` no `fly.toml` antes dos comandos. O volume se chama `crawling_data` e só cabe em uma máquina.
+
+```bash
+fly launch --no-deploy --copy-config --name crypto-crawling --region gru --yes
+fly volumes create crawling_data --region gru --size 10 --yes
+fly scale count 1 --region gru
+fly deploy
+fly logs
+```
+
+`fly logs` mostra o que a máquina está imprimindo. `fly status` diz se ela está ligada. Não coloque `BINANCE_API_KEY` nem `BINANCE_API_SECRET` em `fly secrets`. Não são usadas e o modo público as descarta.
+
 ## Layout
 
 ```text

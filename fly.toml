@@ -1,0 +1,42 @@
+# Nome padrão. Se "crypto-crawling" já existir na Fly, troque aqui antes do launch.
+app = "crypto-crawling"
+primary_region = "gru"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PUBLIC_READONLY = "1"
+  PORT = "3000"
+  DATA_DIR = "/data"
+  NODE_ENV = "production"
+  KRONOS_DEVICE = "cpu"
+  CRAWLER_ENABLED = "1"
+  FEED_MODE = "binance"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # A máquina fica ligada. O coletor grava o dia inteiro.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  # No modo público, /api/health responde 200 assim que o processo fala.
+  # O JSON ainda diz ready=false enquanto o feed ou o modelo sobem.
+  [[http_service.checks]]
+    grace_period = "5m"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/api/health"
+
+# 2 GB para o Kronos-small em CPU. Se uma previsão estourar, suba para 4gb.
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+
+[[mounts]]
+  source = "crawling_data"
+  destination = "/data"

@@ -4,6 +4,7 @@ import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
 import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { KronosBridge } from './kronos-bridge';
 import { MarketFeed } from './market-feed';
@@ -28,10 +29,27 @@ import { toCanonical } from './crawler/score';
 import { isPublicInterval, parsePublicKlines } from './market/public-klines';
 import { readAranhaConfig } from './aranha/config';
 import { sendTeia } from './teia/handler';
+import {
+  applyDataDir,
+  dropExchangeCredentials,
+  healthHttpStatus,
+  isPublicReadonly,
+  publicReadonlyMiddleware
+} from './public-readonly';
 
 loadEnvFile();
+applyDataDir(process.env);
+const publicReadOnly = isPublicReadonly();
+const droppedExchangeKeys = publicReadOnly ? dropExchangeCredentials(process.env) : [];
+if (publicReadOnly) {
+  console.log('[readonly] PUBLIC_READONLY=1. Só GET, HEAD e o WebSocket /ws. Nenhuma ordem é enviada.');
+  if (droppedExchangeKeys.length) {
+    console.log(`[readonly] Chaves de corretora ignoradas: ${droppedExchangeKeys.join(', ')}.`);
+  }
+}
 
 const app = express();
+if (publicReadOnly) app.use(publicReadonlyMiddleware);
 app.use(cors());
 app.use(express.json());
 
@@ -354,8 +372,9 @@ app.get('/api/health', (_req, res) => {
   const feedStatus = feed.getStatus();
   const modelStatus = bridge.getStatus();
   const health = getHealthSnapshot(FEED_MODE, feedStatus, modelStatus);
-  res.status(health.ready ? 200 : 503).json({
+  res.status(healthHttpStatus(health.ready, publicReadOnly)).json({
     ...health,
+    readonly: publicReadOnly,
     feedMode: FEED_MODE,
     feedStatus,
     modelStatus,
@@ -484,6 +503,22 @@ app.get('/api/backtest', (_req, res) => {
   res.type('json').send(readFileSync(config.reportPath, 'utf8'));
 });
 
+const distDir = resolve('dist');
+if (existsSync(join(distDir, 'index.html'))) {
+  app.use(express.static(distDir));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      next();
+      return;
+    }
+    if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
+      next();
+      return;
+    }
+    res.sendFile(join(distDir, 'index.html'));
+  });
+}
+
 async function bootstrap() {
   await loadHistoricalData();
   await catchUpHistory();
@@ -491,7 +526,7 @@ async function bootstrap() {
   crawler.start();
   bridge.start();
   feed.start();
-  httpServer.listen(PORT, () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`[Kronos Research Server] Listening on http://localhost:${PORT}`);
     console.log('[Kronos Research Server] Paper trading only. No orders are submitted.');
   });
