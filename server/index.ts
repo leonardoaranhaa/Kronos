@@ -60,6 +60,7 @@ const session = new PaperSession(
 let latestIndicators: TechnicalIndicators | null = null;
 let latestCandle: CanonicalCandle | null = null;
 let latestForecast: number[] = [];
+let latestDistribution: { p10?: number[]; p90?: number[]; pUp?: number } | null = null;
 let startupInferenceRequested = false;
 const decisions = new Map<number, { close: number; indicators: TechnicalIndicators }>();
 let ingestQueue = Promise.resolve();
@@ -87,6 +88,8 @@ function snapshotPayload() {
     candle: latestCandle,
     indicators: latestIndicators,
     forecast: latestForecast,
+    quantileBand: latestDistribution ? { p10: latestDistribution.p10, p90: latestDistribution.p90 } : undefined,
+    pUp: latestDistribution?.pUp,
     paper: session.getSnapshot(),
     history: describeHistory(history)
   };
@@ -180,6 +183,12 @@ bridge.on('model-error', data => broadcast({ type: 'KRONOS_MODEL_ERROR', payload
 bridge.on('prediction', prediction => {
   const predicted = Array.isArray(prediction.predictions) ? prediction.predictions as number[] : [];
   latestForecast = predicted;
+  const band = prediction.quantileBand as { p10?: number[]; p90?: number[] } | undefined;
+  latestDistribution = {
+    p10: band?.p10,
+    p90: band?.p90,
+    pUp: typeof prediction.pUp === 'number' ? prediction.pUp : undefined
+  };
   const decisionOpenTime = Number(prediction.timestamp);
   const decision = decisions.get(decisionOpenTime);
   let signal: ResearchSignal | null = null;
@@ -319,6 +328,15 @@ app.get('/api/history', (_req, res) => {
 
 app.get('/api/paper', (_req, res) => {
   res.json(snapshotPayload());
+});
+
+app.get('/api/research-m3', (_req, res) => {
+  const path = 'reports/research-m3.json';
+  if (!existsSync(path)) {
+    res.status(404).json({ error: 'Ainda não há a comparação do patch. Rode npm run research:m3.' });
+    return;
+  }
+  res.type('json').send(readFileSync(path, 'utf8'));
 });
 
 app.get('/api/research', (_req, res) => {

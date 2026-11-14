@@ -8,6 +8,7 @@ on:
       - engineering/foundation-audit
       - cursor/research-paper-milestone-6762
       - cursor/honest-edge-m2-6762
+      - cursor/kronos-patch-layer-m3-6762
   pull_request:
     branches:
       - main
