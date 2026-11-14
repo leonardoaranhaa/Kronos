@@ -3,12 +3,14 @@ name: Environmental time-series lab
 on:
   push:
     branches:
+      - main
       - engineering/p1-data-integrity
     paths:
       - "labs/environmental-timeseries/**"
       - ".github/workflows/environmental-timeseries-ci.yml"
   pull_request:
     branches:
+      - main
       - engineering/foundation-audit
     paths:
       - "labs/environmental-timeseries/**"
