@@ -86,6 +86,8 @@ npm run validate -- --strategy kronos-m3
 npm run validate -- --strategy kronos-rule
 ```
 
+`KRONOS_VALIDATION_END_MS` (timestamp em milissegundos) congela o fim da janela, para que os três comandos leiam o mesmo snapshot.
+
 `kronos-m2` deixa o tokenizer em treino, como no estudo antigo. `kronos-m3` e `kronos-rule` exigem o patch de RoPE já aplicado no checkout. `kronos-rule` é a regra ao vivo, com o bloqueio de RSI.
 
 ## Regras do sinal

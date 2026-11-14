@@ -220,6 +220,13 @@ export function kronosSeriesFromForecasts(
 export async function loadKronosCandles(now = Date.now()): Promise<{ candles: CanonicalCandle[]; sha256: string }> {
   const days = Number(process.env.KRONOS_VALIDATION_DAYS || 120);
   if (!Number.isInteger(days) || days < 30) throw new Error('KRONOS_VALIDATION_DAYS deve ser um inteiro >= 30.');
+  // KRONOS_VALIDATION_END_MS freezes the window so M2, M3 and the current rule read the same snapshot.
+  const frozenEnd = process.env.KRONOS_VALIDATION_END_MS;
+  if (frozenEnd) {
+    const end = Number(frozenEnd);
+    if (!Number.isInteger(end) || end <= 0) throw new Error('KRONOS_VALIDATION_END_MS deve ser um timestamp em milissegundos.');
+    now = end;
+  }
   const downloaded = await downloadKlines({
     symbol: 'BTCUSDT',
     interval: '1h',
