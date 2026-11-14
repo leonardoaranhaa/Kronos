@@ -43,7 +43,7 @@ export function validateCanonicalCandle(candle: CanonicalCandle): CandleValidati
   }
   if (candle.closeTime <= candle.openTime) errors.push('closeTime must be later than openTime');
   if (intervalMs !== null) {
-    const alignmentOffset = candle.interval === '1w' ? 345_600_000 : 0; // Binance weekly candles open Monday 00:00 UTC.
+    const alignmentOffset = candle.interval === '1w' ? 345_600_000 : 0;
     if ((candle.openTime - alignmentOffset) % intervalMs !== 0) {
       errors.push('openTime is not aligned to the interval boundary');
     }
@@ -68,12 +68,14 @@ export function validateCanonicalCandle(candle: CanonicalCandle): CandleValidati
   return { valid: errors.length === 0, errors };
 }
 
-/** Audits series without silently repairing, deduplicating or discarding input. */
+/** Audits a complete series without silently repairing, deduplicating or discarding input. */
 export function auditCandleSeries(candles: CanonicalCandle[]): CandleSeriesQuality {
   const errors: string[] = [];
   const duplicates = new Set<number>();
   const seen = new Set<number>();
   const validCandles: CanonicalCandle[] = [];
+
+  if (candles.length === 0) errors.push('series is empty');
 
   for (const candle of candles) {
     const result = validateCanonicalCandle(candle);
@@ -88,7 +90,7 @@ export function auditCandleSeries(candles: CanonicalCandle[]): CandleSeriesQuali
 
   const sorted = [...validCandles].sort((a, b) => a.openTime - b.openTime);
   const missingIntervals: number[] = [];
-  if (sorted.length > 1) {
+  if (sorted.length > 0) {
     const first = sorted[0];
     const intervalMs = intervalToMilliseconds(first.interval);
     for (let i = 1; i < sorted.length; i++) {

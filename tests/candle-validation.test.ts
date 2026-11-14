@@ -23,6 +23,14 @@ test('rejects impossible OHLC relationships and negative volume', () => {
   assert.ok(result.errors.some(error => error.includes('volume')));
 });
 
+test('rejects an empty series', () => {
+  const result = auditCandleSeries([]);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes('series is empty'));
+  assert.equal(result.receivedCount, 0);
+  assert.equal(result.acceptedCount, 0);
+});
+
 test('reports duplicate timestamps', () => {
   const result = auditCandleSeries([candle(intervalMs), candle(intervalMs)]);
   assert.equal(result.valid, false);
@@ -34,6 +42,12 @@ test('reports missing intervals', () => {
   const result = auditCandleSeries([candle(intervalMs), candle(intervalMs * 3)]);
   assert.equal(result.valid, false);
   assert.deepEqual(result.missingIntervals, [intervalMs * 2]);
+});
+
+test('rejects mixed symbols in one series', () => {
+  const result = auditCandleSeries([candle(intervalMs), { ...candle(intervalMs * 2), symbol: 'ETHUSDT' }]);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some(error => error.includes('mixed venue, symbol or interval')));
 });
 
 test('rejects close time inconsistent with interval semantics', () => {

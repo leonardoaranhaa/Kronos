@@ -8,6 +8,7 @@ import { KronosBridge } from './kronos-bridge';
 import { MarketFeed } from './market-feed';
 import { CanonicalCandle } from '../shared/types';
 import { auditCandleSeries, validateCanonicalCandle } from './candle-validation';
+import { getHealthSnapshot } from './health';
 
 loadEnvFile();
 
@@ -53,8 +54,12 @@ async function loadHistoricalData(): Promise<void> {
   )) {
     throw new Error('Historical dataset provenance, symbol or timeframe does not match the Binance configuration');
   }
-  candleHistory.push(...candles.slice(-MAX_HISTORY));
-  console.log(`[Data] Loaded ${candleHistory.length} validated historical candles`);
+  if (FEED_MODE === 'replay') {
+    feed.setReplayCandles(candles);
+  } else {
+    candleHistory.push(...candles.slice(-MAX_HISTORY));
+  }
+  console.log(`[Data] Validated ${candles.length} historical candles; preloaded ${candleHistory.length} into live-feed history`);
 }
 
 bridge.on('model-status', data => broadcast({ type: 'KRONOS_MODEL_STATUS', payload: data }));
@@ -84,11 +89,14 @@ feed.on('candle', (candle: CanonicalCandle) => {
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({
-    status: 'ok',
+  const feedStatus = feed.getStatus();
+  const modelStatus = bridge.getStatus();
+  const health = getHealthSnapshot(FEED_MODE, feedStatus, modelStatus);
+  res.status(health.ready ? 200 : 503).json({
+    ...health,
     feedMode: FEED_MODE,
-    feedStatus: feed.getStatus(),
-    modelStatus: bridge.getStatus(),
+    feedStatus,
+    modelStatus,
     symbol: SYMBOL,
     timeframe: TIMEFRAME,
     historyCount: candleHistory.length

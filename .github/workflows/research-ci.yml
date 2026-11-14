@@ -3,10 +3,12 @@ name: Research pipeline validation
 on:
   push:
     branches:
-      - engineering/foundation-audit
+      - main
+      - engineering/p1-data-integrity
   pull_request:
     branches:
       - main
+      - engineering/foundation-audit
 
 permissions:
   contents: read
@@ -17,6 +19,7 @@ concurrency:
 
 jobs:
   validate:
+    name: Offline research validation
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -27,7 +30,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
@@ -38,7 +40,16 @@ jobs:
       - name: Test Binance feed normalization
         run: npm run test:binance
 
-      - name: Build application
+      - name: Test Binance historical importer helpers
+        run: npm run test:import
+
+      - name: Test deterministic historical replay
+        run: npm run test:replay
+
+      - name: Test service health states
+        run: npm run test:health
+
+      - name: Build research application
         run: npm run build
 
       - name: Check Python worker syntax

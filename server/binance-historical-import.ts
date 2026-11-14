@@ -1,17 +1,20 @@
 import { loadEnvFile } from './load-env';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { CanonicalCandle } from '../shared/types';
-import { auditCandleSeries, intervalToMilliseconds, validateCanonicalCandle } from './candle-validation';
+import { auditCandleSeries, intervalToMilliseconds } from './candle-validation';
+import { getNextBinanceCursor, normalizeBinanceKlineRow, sha256Content } from './binance-import-core';
 
 loadEnvFile();
 
 const symbol = (process.env.SYMBOL || 'BTCUSDT').toUpperCase();
 const interval = process.env.TIMEFRAME || '5m';
-const parsedIntervalMs = intervalToMilliseconds(interval);
-if (parsedIntervalMs === null) throw new Error(`Unsupported interval: ${interval}`);
-const intervalMs = parsedIntervalMs;
+function requireIntervalMilliseconds(value: string): number {
+  const milliseconds = intervalToMilliseconds(value);
+  if (milliseconds === null) throw new Error(`Unsupported interval: ${value}`);
+  return milliseconds;
+}
+const intervalMs = requireIntervalMilliseconds(interval);
 
 const endTime = Number(process.env.END_TIME || Date.now());
 const startTime = Number(process.env.START_TIME || (endTime - intervalMs * 1000));
@@ -34,7 +37,11 @@ async function fetchPage(cursor: number): Promise<unknown[]> {
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    if (response.ok) return await response.json() as unknown[];
+    if (response.ok) {
+      const payload: unknown = await response.json();
+      if (!Array.isArray(payload)) throw new Error('Binance klines response was not an array');
+      return payload;
+    }
     if (response.status === 418 || response.status === 429) {
       const retryAfter = Number(response.headers.get('retry-after') || 0);
       const waitMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(30_000, 1_000 * (2 ** attempt));
@@ -57,35 +64,17 @@ async function main() {
     rawPages.push(JSON.stringify({ fetchedAt: Date.now(), cursor, rows: page }));
 
     for (const row of page) {
-      if (!Array.isArray(row) || row.length < 11) continue;
-      const candle: CanonicalCandle = {
-        venue: 'binance',
-        symbol,
-        interval,
-        openTime: Number(row[0]),
-        open: Number(row[1]),
-        high: Number(row[2]),
-        low: Number(row[3]),
-        close: Number(row[4]),
-        volume: Number(row[5]),
-        closeTime: Number(row[6]),
-        quoteVolume: Number(row[7]),
-        source: 'historical',
-        ingestedAt: Date.now()
-      };
-      if (candle.closeTime >= now) continue;
-      const validation = validateCanonicalCandle(candle);
-      if (validation.valid) candles.push(candle);
-      else throw new Error(`Invalid Binance candle at ${candle.openTime}: ${validation.errors.join(', ')}`);
+      const candle = normalizeBinanceKlineRow(row, symbol, interval, Date.now(), now);
+      if (candle) candles.push(candle);
     }
 
-    const lastOpenTime = Number((page[page.length - 1] as unknown[])[0]);
-    const nextCursor = lastOpenTime + intervalMs;
-    if (!Number.isFinite(nextCursor) || nextCursor <= cursor) {
-      throw new Error('Binance pagination did not advance; aborting to prevent an infinite loop');
-    }
+    const nextCursor = getNextBinanceCursor(page, cursor, intervalMs);
     cursor = nextCursor;
     if (page.length < 1000) break;
+  }
+
+  if (candles.length === 0) {
+    throw new Error('Historical import produced zero completed candles; no dataset or manifest was written');
   }
 
   candles.sort((a, b) => a.openTime - b.openTime);
@@ -100,8 +89,9 @@ async function main() {
   const rawPath = join(rawDir, `${stem}.jsonl`);
   const normalizedPath = join(normalizedDir, `${stem}.jsonl`);
   const rawContent = rawPages.join('\n') + (rawPages.length ? '\n' : '');
-  const normalizedContent = candles.map(candle => JSON.stringify(candle)).join('\n') + (candles.length ? '\n' : '');
-  const sha256 = createHash('sha256').update(normalizedContent).digest('hex');
+  const normalizedContent = candles.map(candle => JSON.stringify(candle)).join('\n') + '\n';
+  const rawSha256 = sha256Content(rawContent);
+  const normalizedSha256 = sha256Content(normalizedContent);
 
   await writeFile(rawPath, rawContent, { flag: 'wx' });
   await writeFile(normalizedPath, normalizedContent, { flag: 'wx' });
@@ -117,7 +107,8 @@ async function main() {
     sourceEndpoint: `${baseUrl}/api/v3/klines`,
     rawPath,
     normalizedPath,
-    normalizedSha256: sha256,
+    rawSha256,
+    normalizedSha256,
     quality
   };
   const manifestPath = join(manifestDir, `${stem}.manifest.json`);

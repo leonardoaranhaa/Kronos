@@ -1,7 +1,7 @@
 # KRONOS — Engineering Plan
 
-**Status:** Binance public-data feed and official Kronos adapter implemented on the engineering branch; runtime validation pending.  
-**Working branch:** `engineering/foundation-audit`  
+**Status:** Offline CI and research build pass on `engineering/p1-data-integrity`; live data and model runtime validation remain pending.  
+**Working branch:** `engineering/p1-data-integrity` (based on `engineering/foundation-audit`)  
 **Scope:** Read-only market data, model inference, historical research, validation and observability. No order submission or real-money execution.
 
 ## 1. Source-of-truth integrations
@@ -49,13 +49,19 @@
 - [x] Document baseline and research-only gates.
 
 ### P1 — Data ingestion and integrity
+
+**Current correction branch:** `engineering/p1-data-integrity`. Changes are proposed for review; no milestone is marked complete until tests and runtime evidence are produced.
 - [x] Canonical candle schema with quote-asset volume.
 - [x] OHLCV and interval-boundary validation.
 - [x] Duplicate, gap and mixed-series audit.
 - [x] Binance WebSocket adapter; only finalized klines are emitted.
 - [x] Historical REST importer with pagination, rate-limit retries and raw/normalized snapshots.
 - [x] SHA-256 manifest for each normalized snapshot.
+- [x] Raw and normalized snapshot SHA-256 hashes.
+- [x] Empty datasets and malformed Binance rows fail closed.
+- [x] Deterministic chronological replay from validated historical snapshots; random replay removed.
 - [x] Startup loading of a validated historical snapshot.
+- [x] Offline unit tests for Binance row normalization, pagination cursor safety and snapshot hashes (CI passed; 6/6).
 - [ ] Runtime test against the live public stream and a historical import.
 
 ### P2 — Official Kronos integration
@@ -79,12 +85,13 @@
 
 ### P5 — Observability
 - [x] Expose feed and model status through health endpoint.
+- [x] Return HTTP 503 / `degraded` when feed or official model is not ready.
 - [x] Emit data-quality warnings for invalid, duplicate or out-of-order candles.
 - [ ] Persist forecasts and later observed outcomes.
 - [ ] Add structured logs, graceful recovery and latency metrics.
 
 ### P6 — Release hardening
-- [ ] Add CI checks and complete unit/integration test coverage.
+- [x] Add offline GitHub Actions CI for candle, feed, importer, replay, health, build and syntax checks (passed on commit `9baf3a5`; PR run #16).
 - [ ] Validate clean install, historical import, WebSocket reconnect and model startup.
 - [ ] Review dependency and secret-management posture.
 - [ ] Keep live order execution disabled.
