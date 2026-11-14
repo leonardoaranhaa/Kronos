@@ -1,0 +1,78 @@
+{
+  "generatedAt": "2026-11-12T22:46:42.761Z",
+  "protocol": {
+    "symbol": "BTCUSDT",
+    "interval": "1h",
+    "oosStart": "2026-08-12T00:00:00.000Z",
+    "context": 256,
+    "horizon": 6,
+    "stride": 12,
+    "sampleCount": 4,
+    "retuned": false,
+    "frozenParams": {
+      "id": "escolhida-na-amostra",
+      "mode": "long_short",
+      "trendFilter": false,
+      "minMoveBps": 50,
+      "atrMultiple": 0,
+      "maxDispersionBps": 10000
+    },
+    "tokenizerEval": false,
+    "ropePatch": "patches/kronos-rope-425.patch",
+    "upstreamCommit": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+    "datasetSha256": "543797effe54ed2b90acf7617c798f8e64bc57db63792cc5141b5e42dcb27145",
+    "datasetPath": "data/normalized/BTCUSDT_1h_1762905600000_1794502209093_2026-11-12T16-50-10-842Z.jsonl"
+  },
+  "variantsTried": 0,
+  "note": "No new trading rule was searched. One already chosen rule was scored again after the RoPE patch.",
+  "before": {
+    "accuracy": 0.518918918918919,
+    "hits": 96,
+    "compared": 185,
+    "pValue": 0.32961838176785463,
+    "mae": 557.4819163851352,
+    "tunedReturnPct": -0.9520875858070394,
+    "tunedTrades": 12,
+    "buyAndHoldReturnPct": 11.999048444692125
+  },
+  "after": {
+    "accuracy": 0.5243243243243243,
+    "hits": 97,
+    "compared": 185,
+    "pValue": 0.2782673823783868,
+    "mae": 576.0471351351349,
+    "tunedReturnPct": -10.87332897928498,
+    "tunedTrades": 10,
+    "tunedSharpe": -1.042719556992483,
+    "tunedDrawdownPct": 20.30513208113758,
+    "buyAndHoldReturnPct": 11.999048444692125
+  },
+  "reliability": [
+    {
+      "pUp": 0,
+      "count": 34,
+      "realizedUpRate": 0.6764705882352942
+    },
+    {
+      "pUp": 0.25,
+      "count": 63,
+      "realizedUpRate": 0.4444444444444444
+    },
+    {
+      "pUp": 0.5,
+      "count": 44,
+      "realizedUpRate": 0.4772727272727273
+    },
+    {
+      "pUp": 0.75,
+      "count": 25,
+      "realizedUpRate": 0.56
+    },
+    {
+      "pUp": 1,
+      "count": 19,
+      "realizedUpRate": 0.5789473684210527
+    }
+  ],
+  "promoted": false
+}

@@ -3,10 +3,19 @@ name: Research pipeline validation
 on:
   push:
     branches:
+      - main
       - engineering/p1-data-integrity
       - engineering/foundation-audit
+      - cursor/research-paper-milestone-6762
+      - cursor/honest-edge-m2-6762
+      - cursor/kronos-patch-layer-m3-6762
+      - cursor/aranha-digital-ce63
+      - cursor/crypto-crawler-ce63
+      - cursor/chart-dashboard-ce63
+      - cursor/chrome-sidepanel-ce63
   pull_request:
     branches:
+      - main
       - engineering/foundation-audit
       - engineering/p1-data-integrity
 
