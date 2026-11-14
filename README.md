@@ -123,6 +123,16 @@ npm run backtest:aranha
 
 O resultado vai para `reports/aranha-latest.md`. A aba Aranha do painel mostra o gráfico, os trechos, as notícias e esse relatório.
 
+## Crawler
+
+A aba Crawler olha várias moedas USDT de uma vez e ordena por um score explicado em português. O modelo Kronos, quando está pronto, só é chamado nas primeiras da lista. Baleias da Binance e transações grandes públicas aparecem na mesma aba. O estudo histórico é outro comando:
+
+```bash
+npm run backtest:crawler
+```
+
+Ele responde se o topo da lista rendeu mais que a média das moedas nas horas seguintes. A cadeia não entra nesse estudo.
+
 ## Layout
 
 ```text

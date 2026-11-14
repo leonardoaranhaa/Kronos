@@ -41,6 +41,8 @@ export class KronosBridge extends EventEmitter {
     });
     this.kronos.on('prediction', message => {
       this.inferenceInFlight = false;
+      const requestId = String((message as { requestId?: string }).requestId || '');
+      if (requestId.startsWith('crawler-')) return;
       this.emit('prediction', message);
     });
     this.kronos.on('model-error', message => {
@@ -72,6 +74,27 @@ export class KronosBridge extends EventEmitter {
       return false;
     }
     return true;
+  }
+
+  /** One forecast for a crawler candidate. Skips when the paper path is already using the worker. */
+  public async forecastIfIdle(candles: CanonicalCandle[]): Promise<number[] | null> {
+    if (!this.workerReady || this.inferenceInFlight || candles.length < 32) return null;
+    const last = candles[candles.length - 1];
+    this.inferenceInFlight = true;
+    try {
+      const response = await this.kronos.infer({
+        requestId: `crawler-${last.symbol}-${last.openTime}`,
+        timestamp: last.openTime,
+        interval: last.interval || '5m',
+        horizon: this.horizon,
+        candles: candles.slice(-this.maxContext)
+      });
+      return Array.isArray(response.predictions) ? response.predictions : null;
+    } catch {
+      return null;
+    } finally {
+      this.inferenceInFlight = false;
+    }
   }
 
   public stop(): void {

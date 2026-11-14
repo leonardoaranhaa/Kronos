@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import PriceChart from './PriceChart';
-import AranhaPanel, { AranhaBrief } from './AranhaPanel';
+import { AranhaBrief } from './AranhaPanel';
+import AranhaLive, { type AranhaLivePayload } from './AranhaLive';
 import { CanonicalCandle, TechnicalIndicators } from '../../shared/types';
 import type { ResearchSignal } from '../../server/signals';
 
@@ -96,7 +97,7 @@ function modelLabel(status: string): string {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('mercado');
+  const [tab, setTab] = useState<Tab>('aranha');
   const [connected, setConnected] = useState(false);
   const [model, setModel] = useState('iniciando');
   const [feed, setFeed] = useState('iniciando');
@@ -111,6 +112,7 @@ export default function App() {
   const [history, setHistory] = useState<HistoryView | null>(null);
   const [backtest, setBacktest] = useState<BacktestView | null>(null);
   const [backtestError, setBacktestError] = useState('');
+  const [live, setLive] = useState<AranhaLivePayload | null>(null);
   const [research, setResearch] = useState<{
     summaryPt?: string;
     promoteToPaper?: boolean;
@@ -157,6 +159,8 @@ export default function App() {
       if (candles.length) setPrice(candles[candles.length - 1].close);
     }).catch(() => undefined);
 
+    fetch('/api/aranha-live').then(response => response.json()).then(body => setLive(body as AranhaLivePayload)).catch(() => undefined);
+
     fetch('/api/research-m3').then(async response => {
       if (!response.ok) return;
       setPatchCompare(await response.json());
@@ -198,6 +202,8 @@ export default function App() {
         setModel(modelLabel(String(message.payload.status || '')));
       } else if (message.type === 'FEED_STATUS') {
         setFeed(feedLabel(String(message.payload.status || '')));
+      } else if (message.type === 'ARANHA_LIVE') {
+        setLive(message.payload as AranhaLivePayload);
       }
     };
     return () => socket.close();
@@ -226,7 +232,7 @@ export default function App() {
       </header>
 
       <div className="tabs" role="tablist">
-        {([['mercado', 'Mercado'], ['paper', 'Paper'], ['backtest', 'Backtest'], ['pesquisa', 'Pesquisa'], ['aranha', 'Aranha']] as const).map(([id, label]) => (
+        {([['aranha', 'Aranha'], ['mercado', 'Mercado'], ['paper', 'Paper'], ['backtest', 'Backtest'], ['pesquisa', 'Pesquisa']] as const).map(([id, label]) => (
           <button key={id} className="tab" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
@@ -303,7 +309,7 @@ export default function App() {
         </section>
       )}
 
-      {tab === 'aranha' && <AranhaPanel />}
+      {tab === 'aranha' && <AranhaLive payload={live} />}
 
       {tab === 'backtest' && (
         <section className="card">

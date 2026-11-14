@@ -117,7 +117,7 @@ function NewsRow({ item }: { item: NewsItem }) {
   );
 }
 
-export default function AranhaPanel() {
+export default function AranhaPanel({ symbol = null }: { symbol?: string | null }) {
   const [data, setData] = useState<AranhaContext | null>(null);
   const [error, setError] = useState('');
   const [backtest, setBacktest] = useState<AranhaBacktest | null>(null);
@@ -126,14 +126,19 @@ export default function AranhaPanel() {
   useEffect(() => {
     let stop = false;
     const pull = () => {
-      fetch('/api/aranha').then(async response => {
+      const endpoint = symbol ? `/api/crawler/symbol/${encodeURIComponent(symbol)}` : '/api/aranha';
+      fetch(endpoint).then(async response => {
         if (!response.ok) throw new Error('resposta ruim');
-        return response.json() as Promise<AranhaContext>;
+        return response.json() as Promise<AranhaContext & { context?: AranhaContext }>;
       }).then(body => {
-        if (!stop) {
-          setData(body);
-          setError('');
+        if (stop) return;
+        const view = body.context ?? (body.pattern ? body : null);
+        if (!view) {
+          setError('Esta moeda ainda não tem candles suficientes no crawler.');
+          return;
         }
+        setData(view);
+        setError('');
       }).catch(() => {
         if (!stop) setError('Não foi possível ler a Aranha. O servidor local está no ar?');
       });
@@ -149,7 +154,7 @@ export default function AranhaPanel() {
       stop = true;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [symbol]);
 
   if (error) return <section className="card"><h2>Aranha</h2><p>{error}</p></section>;
   if (!data) return <section className="card"><h2>Aranha</h2><p className="muted">Lendo o gráfico…</p></section>;
