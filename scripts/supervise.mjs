@@ -1,5 +1,6 @@
 /**
- * Keeps the research server, the Aranha collector and the crawler in one process.
+ * Keeps the research server, the Aranha collector, the crawler and the public
+ * futures collector in one process. Futures prints go to $DATA_DIR/futures/live.
  * Restarts that process if it exits, and if /api/health stops answering.
  * A degraded health JSON (feed or model still starting) is still a live process.
  */

@@ -13,6 +13,8 @@ primary_region = "gru"
   KRONOS_DEVICE = "cpu"
   CRAWLER_ENABLED = "1"
   FEED_MODE = "binance"
+  # Coletor público de futuros, no mesmo volume. Os prints ficam em /data/futures/live.
+  FUTURES_LIVE = "1"
 
 [http_service]
   internal_port = 3000

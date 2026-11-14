@@ -88,6 +88,15 @@ npm run validate -- --strategy kronos-rule
 
 `KRONOS_VALIDATION_END_MS` (timestamp em milissegundos) congela o fim da janela, para que os três comandos leiam o mesmo snapshot.
 
+Os futuros públicos da Binance (funding, open interest, long/short, taker e livro) usam outro comando, também sem chave e sem ordem:
+
+```bash
+npm run futures:import
+npm run validate -- --strategy futuros
+```
+
+O importador lê `data.binance.vision`. Os arquivos vão para `data/futures`, ou para `$DATA_DIR/futures` quando `DATA_DIR` está definido (no Fly, `/data`). O coletor ao vivo sobe junto com o servidor e grava em `futures/live`. A regra do modelo fica em `server/futures/protocol.ts` e no `reports/trial-log.jsonl` antes da conta. A aba Pesquisa mostra o veredito. No gráfico, a camada Funding / OI é opcional e só visual.
+
 `kronos-m2` deixa o tokenizer em treino, como no estudo antigo. `kronos-m3` e `kronos-rule` exigem o patch de RoPE já aplicado no checkout. `kronos-rule` é a regra ao vivo, com o bloqueio de RSI.
 
 Cada tentativa medida grava o seu Sharpe por período em `reports/trial-log.jsonl`. O Sharpe deflacionado usa o desvio-padrão desses Sharpes. A grade de 108 combinações do M2 entra na contagem, mas o arquivo antigo não guardou o Sharpe de cada combinação, então ela não entra na dispersão. O erro-padrão do Sharpe só substitui essa dispersão quando há menos de dois Sharpes gravados.

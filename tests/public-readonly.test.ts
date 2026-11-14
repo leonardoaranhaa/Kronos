@@ -46,6 +46,10 @@ test('public mode blocks writes and closed routes, and still allows GET and HEAD
     const order = await fetch(`http://127.0.0.1:${port}/api/order`, { method: 'POST' });
     assert.equal(order.status, 403);
     assert.equal(readonlyDecision('GET', '/ws').allow, true);
+    for (const path of ['/api/teia', '/api/validation', '/api/futures/overlay', '/api/futures/status']) {
+      assert.equal(readonlyDecision('GET', path).allow, true);
+      assert.equal(readonlyDecision('POST', path).allow, false);
+    }
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
   }
