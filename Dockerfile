@@ -39,6 +39,7 @@ COPY --from=web /src/dist ./dist
 COPY --from=web /src/server ./server
 COPY --from=web /src/shared ./shared
 COPY scripts/supervise.mjs ./scripts/supervise.mjs
+COPY reports ./reports
 
 ENV NODE_ENV=production \
     PORT=3000 \

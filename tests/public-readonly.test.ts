@@ -65,6 +65,9 @@ test('DATA_DIR fills empty paths, keeps an explicit path, and exchange keys are 
   assert.equal(env.AUDIT_LOG_PATH, join('/data', 'audit', 'paper.jsonl'));
   assert.equal(env.PAPER_STATE_PATH, join('/data', 'paper', 'state.json'));
   assert.equal(env.HF_HOME, join('/data', 'huggingface'));
+  assert.equal(env.BACKTEST_REPORT_PATH, undefined);
+  assert.equal(env.ARANHA_REPORT_PATH, undefined);
+  assert.equal(env.CRAWLER_REPORT_PATH, undefined);
   const dropped = dropExchangeCredentials(env);
   assert.deepEqual(dropped.sort(), ['BINANCE_API_KEY', 'BINANCE_API_SECRET']);
   assert.equal(env.BINANCE_API_KEY, undefined);
@@ -106,6 +109,9 @@ test('the Fly file and the image stay read-only, in gru, with the rope patch', (
   assert.match(docker, /kronos-rope-425\.patch/);
   assert.match(docker, /PUBLIC_READONLY=1/);
   assert.match(docker, /supervise\.mjs/);
+  assert.match(docker, /COPY reports \.\/reports/);
+  const ignore = readFileSync(new URL('../.dockerignore', import.meta.url), 'utf8');
+  assert.equal(ignore.split('\n').includes('reports'), false);
   assert.match(docker, /KRONOS_DEVICE=cpu/);
   const index = readFileSync(new URL('../server/index.ts', import.meta.url), 'utf8');
   assert.equal(index.includes('order_execution'), false);

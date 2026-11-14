@@ -5,7 +5,6 @@ dist
 venv
 data
 external
-reports
 .env
 .env.*
 *.log

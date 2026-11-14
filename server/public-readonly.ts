@@ -32,9 +32,8 @@ export function applyDataDir(env: NodeJS.ProcessEnv, dataDir = env.DATA_DIR): vo
   fill('ARANHA_CACHE_DIR', 'aranha/cache');
   fill('AUDIT_LOG_PATH', 'audit/paper.jsonl');
   fill('PAPER_STATE_PATH', 'paper/state.json');
-  fill('BACKTEST_REPORT_PATH', 'reports/backtest-latest.json');
-  fill('ARANHA_REPORT_PATH', 'reports/aranha-latest.json');
-  fill('CRAWLER_REPORT_PATH', 'reports/crawler-latest.json');
+  // Published reports stay next to the server. They are shipped in the image.
+  // Pointing them at an empty volume would hide research-m2, the backtest and the Aranha study.
   if (env.HF_HOME === undefined || env.HF_HOME.trim() === '') env.HF_HOME = join(root, 'huggingface');
   if (env.HUGGINGFACE_HUB_CACHE === undefined || env.HUGGINGFACE_HUB_CACHE.trim() === '') {
     env.HUGGINGFACE_HUB_CACHE = join(root, 'huggingface', 'hub');
