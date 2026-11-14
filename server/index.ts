@@ -26,6 +26,8 @@ import { CrawlerRuntime } from './crawler/runtime';
 import { readCrawlerConfig } from './crawler/config';
 import { toCanonical } from './crawler/score';
 import { isPublicInterval, parsePublicKlines } from './market/public-klines';
+import { readAranhaConfig } from './aranha/config';
+import { sendTeia } from './teia/handler';
 
 loadEnvFile();
 
@@ -52,7 +54,12 @@ console.log(`[Paper] ${paperChoice.reason}`);
 const bridge = new KronosBridge(paperChoice.id === 'pesquisa'
   ? { sampleCount: SAMPLE_COUNT, horizon: 6, maxContext: 256 }
   : {});
-const crawler = new CrawlerRuntime(readCrawlerConfig(), {
+const crawlerConfig = readCrawlerConfig();
+const teiaPaths = {
+  crawlerDir: crawlerConfig.snapshotDir,
+  aranhaDir: readAranhaConfig().snapshotDir
+};
+const crawler = new CrawlerRuntime(crawlerConfig, {
   forecaster: {
     ready: () => bridge.getStatus() === 'ready',
     predict: async (symbol, bars) => bridge.forecastIfIdle(toCanonical(symbol, bars))
@@ -461,6 +468,10 @@ app.get('/api/research', (_req, res) => {
     return;
   }
   res.type('json').send(readFileSync(path, 'utf8'));
+});
+
+app.get('/api/teia', (req, res) => {
+  void sendTeia(req, res, teiaPaths);
 });
 
 app.get('/api/backtest', (_req, res) => {

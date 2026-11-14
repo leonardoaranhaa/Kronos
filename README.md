@@ -133,6 +133,33 @@ npm run backtest:crawler
 
 Ele responde se o topo da lista rendeu mais que a média das moedas nas horas seguintes. A cadeia não entra nesse estudo.
 
+## Teia no gráfico
+
+Na aba Aranha, passar o mouse numa vela abre a teia. O clique fixa essa vela. A camada **Teia** liga e desliga um ponto pequeno nas velas que têm eventos gravados na janela anterior. A janela padrão é 30 minutos. Dá para trocar para 15 minutos, 1 hora ou 4 horas.
+
+O centro do desenho é a vela. Os pontos ao redor são o que já estava gravado antes da abertura: baleias (negócio agregado de pelo menos US$ 100 mil), paredes do livro, transferências on-chain de BTC ou ETH, notícias, medo e ganância, e a posição no ranking. O tamanho do ponto segue o valor em dólar, quando o arquivo tem esse valor. O texto fixo do painel é: "Eventos próximos no tempo não provam causa." Não há nota de causalidade e não há sinal de compra ou venda. O volume da própria vela não entra na conta.
+
+Se a janela não tem nada gravado, o painel diz "sem eventos gravados nessa janela". Se a vela é anterior ao primeiro arquivo, o painel diz que dados de antes do início da gravação não existem.
+
+A leitura usa `data/crawler/whales.jsonl`, `data/crawler/onchain.jsonl`, os diários `rankings-*.jsonl` e `walls-*.jsonl`, e os snapshots em `data/aranha/snapshots`.
+
+### Rota para a allowlist do proxy
+
+O proxy público é só de leitura. A teia acrescenta uma rota GET, que precisa entrar na allowlist:
+
+`GET /api/teia`
+
+Não existe POST. A rota não grava arquivo, não calcula sinal e não envia ordem.
+
+```
+GET /api/teia?symbol=BTCUSDT&time=1763132400000&window=30m
+GET /api/teia?symbol=BTCUSDT&from=1763128800000&to=1763136000000&window=30m&interval=5m
+```
+
+`symbol` é o par, por exemplo `BTCUSDT`. `time` é a abertura da vela, em milissegundos. A resposta dessa forma traz os eventos em `[time - janela, time)`. `window` aceita `15m`, `30m` (o padrão, se o parâmetro faltar), `1h` e `4h`.
+
+Sem `time`, `from`, `to` e `interval` devolvem os marcadores: as aberturas de vela, dentro do intervalo, cuja janela anterior tem evento. `interval` aceita `1m`, `5m`, `15m`, `1h`, `4h` e `1d`.
+
 ## Extensão do Chrome
 
 Há um painel lateral, só de leitura, para quem está numa aba da Binance ou do TradingView. A instalação em modo do desenvolvedor está em [extension/README.md](extension/README.md), em poucos passos. O arquivo zip sai com `bash scripts/pack-extension.sh`.

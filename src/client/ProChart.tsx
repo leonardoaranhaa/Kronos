@@ -11,6 +11,12 @@ import {
 } from 'lightweight-charts';
 import type { LiveAnnotation, LiveZone } from '../../server/crawler/live';
 import { mergePublicCandles, type PublicCandle } from '../../server/market/public-klines';
+import { TeiaPanel } from './TeiaPanel';
+import {
+  type TeiaMarker,
+  type TeiaView,
+  type TeiaWindowId
+} from '../../shared/teia';
 import { atr, bollinger, ema, macd, parsePeriods, rsi, sma, vwap } from './chart/indicators';
 import {
   FIB_LEVELS,
@@ -54,6 +60,7 @@ interface Layers {
   cadeia: boolean;
   paper: boolean;
   kronos: boolean;
+  teia: boolean;
 }
 
 const DEFAULT_LAYERS: Layers = {
@@ -65,7 +72,8 @@ const DEFAULT_LAYERS: Layers = {
   paredes: true,
   cadeia: true,
   paper: true,
-  kronos: true
+  kronos: true,
+  teia: true
 };
 
 const TOOLS: { id: DrawTool; label: string; key: string }[] = [
@@ -180,6 +188,17 @@ export default function ProChart({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [logScale, setLogScale] = useState(false);
   const [layers, setLayers] = useState<Layers>(DEFAULT_LAYERS);
+  const [teiaWindow, setTeiaWindow] = useState<TeiaWindowId>('30m');
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [pinnedTime, setPinnedTime] = useState<number | null>(null);
+  const [teiaView, setTeiaView] = useState<TeiaView | null>(null);
+  const [teiaLoading, setTeiaLoading] = useState(false);
+  const [teiaError, setTeiaError] = useState('');
+  const [teiaMarkers, setTeiaMarkers] = useState<TeiaMarker[]>([]);
+  const teiaHoverRef = useRef<(timeMs: number) => void>(() => {});
+  const teiaClickRef = useRef<(timeMs: number) => void>(() => {});
+  const pinnedRef = useRef<number | null>(null);
+  const hoverCandleRef = useRef<number | null>(null);
   const [volumeOn, setVolumeOn] = useState(true);
   const [emaOn, setEmaOn] = useState(true);
   const [emaText, setEmaText] = useState('9, 20');
@@ -202,6 +221,39 @@ export default function ProChart({
   memoryRef.current = memory;
   symbolRef.current = symbol;
   intervalRef.current = interval;
+  pinnedRef.current = pinnedTime;
+
+  function snapOpen(timeMs: number): number | null {
+    const rows = candlesRef.current;
+    if (rows.length === 0) return null;
+    const span = INTERVAL_MS[intervalRef.current];
+    let nearest = rows[0];
+    let best = Math.abs(rows[0].time - timeMs);
+    for (const candle of rows) {
+      const gap = Math.abs(candle.time - timeMs);
+      if (gap < best) {
+        nearest = candle;
+        best = gap;
+      }
+    }
+    return best <= span ? nearest.time : null;
+  }
+
+  teiaHoverRef.current = (timeMs: number) => {
+    const open = snapOpen(timeMs);
+    if (open === null || open === hoverCandleRef.current) return;
+    hoverCandleRef.current = open;
+    if (pinnedRef.current !== null) return;
+    setHoverTime(open);
+  };
+  teiaClickRef.current = (timeMs: number) => {
+    const open = snapOpen(timeMs);
+    if (open === null) return;
+    hoverCandleRef.current = open;
+    setHoverTime(open);
+    setPinnedTime(current => current === open ? null : open);
+  };
+  const teiaActive = pinnedTime ?? hoverTime;
 
   const project = useRef({
     timeToX: (_time: number) => null as number | null,
@@ -274,6 +326,10 @@ export default function ProChart({
     chart.subscribeCrosshairMove(param => {
       const hovered = typeof param.time === 'number' ? param.time * 1000 : candlesRef.current.at(-1)?.time;
       legendRef.current(hovered ?? null);
+      if (typeof param.time === 'number') teiaHoverRef.current(param.time * 1000);
+    });
+    chart.subscribeClick(param => {
+      if (typeof param.time === 'number') teiaClickRef.current(param.time * 1000);
     });
     const observer = new ResizeObserver(() => {
       const width = node.clientWidth;
@@ -320,6 +376,76 @@ export default function ProChart({
       });
     return () => { cancel = true; };
   }, [symbol, interval]);
+
+  useEffect(() => {
+    setPinnedTime(null);
+    setHoverTime(null);
+    hoverCandleRef.current = null;
+    pinnedRef.current = null;
+    setTeiaView(null);
+  }, [symbol, interval]);
+
+  useEffect(() => {
+    if (!layers.teia || candles.length === 0) {
+      setTeiaMarkers([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    const from = candles[0].time;
+    const to = candles[candles.length - 1].time + INTERVAL_MS[interval];
+    const params = new URLSearchParams({
+      symbol,
+      from: String(from),
+      to: String(to),
+      window: teiaWindow,
+      interval
+    });
+    fetch(`/api/teia?${params.toString()}`, { signal: ctrl.signal })
+      .then(async response => {
+        const body = await response.json() as { markers?: TeiaMarker[] };
+        if (!response.ok) return;
+        if (!ctrl.signal.aborted) setTeiaMarkers(body.markers ?? []);
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setTeiaMarkers([]);
+      });
+    return () => ctrl.abort();
+  }, [layers.teia, candles, symbol, interval, teiaWindow]);
+
+  useEffect(() => {
+    if (teiaActive === null) {
+      setTeiaView(null);
+      setTeiaError('');
+      setTeiaLoading(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    setTeiaLoading(true);
+    setTeiaError('');
+    const params = new URLSearchParams({
+      symbol,
+      time: String(teiaActive),
+      window: teiaWindow
+    });
+    fetch(`/api/teia?${params.toString()}`, { signal: ctrl.signal })
+      .then(async response => {
+        const body = await response.json() as TeiaView & { error?: string };
+        if (ctrl.signal.aborted) return;
+        if (!response.ok || body.mode !== 'vela') {
+          setTeiaView(null);
+          setTeiaError(body.error || 'Não foi possível ler a teia.');
+          return;
+        }
+        setTeiaView(body);
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setTeiaError('Não foi possível ler a teia.');
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setTeiaLoading(false);
+      });
+    return () => ctrl.abort();
+  }, [teiaActive, teiaWindow, symbol]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -731,13 +857,39 @@ export default function ProChart({
         ctx.fill();
       }
     }
+    if (layers.teia) {
+      const byTime = new Map(candlesRef.current.map(candle => [candle.time, candle]));
+      ctx.fillStyle = '#7dd3fc';
+      for (const marker of teiaMarkers) {
+        const candle = byTime.get(marker.time);
+        if (!candle) continue;
+        const x = proj.timeToX(candle.time);
+        const y = proj.priceToY(candle.high);
+        if (x === null || y === null) continue;
+        ctx.beginPath();
+        ctx.arc(x, y - 10, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    if (teiaActive !== null) {
+      const x = proj.timeToX(teiaActive);
+      if (x !== null) {
+        ctx.strokeStyle = 'rgba(125,211,252,0.9)';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, proj.height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
     const drawings = draftRef.current ? [...memoryRef.current.items, draftRef.current] : memoryRef.current.items;
     for (const drawing of drawings) drawShape(ctx, drawing, drawing.id === selectedId);
   }
   paintRef.current = paint;
   legendRef.current = paintLegend;
 
-  useEffect(() => { paint(); }, [annotations, zones, walls, forecastBps, layers, memory, draft, selectedId, candles]);
+  useEffect(() => { paint(); }, [annotations, zones, walls, forecastBps, layers, memory, draft, selectedId, candles, teiaMarkers, teiaActive]);
 
   function localXY(event: React.PointerEvent<HTMLDivElement>): { x: number; y: number } | null {
     const rect = hostRef.current?.getBoundingClientRect();
@@ -926,6 +1078,9 @@ export default function ProChart({
         setTool('navegar');
         setDraft(null);
         setNotePoint(null);
+        setPinnedTime(null);
+        setHoverTime(null);
+        hoverCandleRef.current = null;
         return;
       }
       const found = TOOLS.find(item => item.key.toLowerCase() === key);
@@ -961,7 +1116,8 @@ export default function ProChart({
     { id: 'paredes', label: 'Paredes' },
     { id: 'cadeia', label: 'Cadeia' },
     { id: 'paper', label: 'Paper' },
-    { id: 'kronos', label: 'Previsão' }
+    { id: 'kronos', label: 'Previsão' },
+    { id: 'teia', label: 'Teia' }
   ];
 
   return (
@@ -1003,6 +1159,21 @@ export default function ProChart({
             <button type="submit">Fixar</button>
           </form>
         )}
+        {teiaActive !== null && (
+          <TeiaPanel
+            view={teiaView && teiaView.time === teiaActive && teiaView.window === teiaWindow ? teiaView : null}
+            windowId={teiaWindow}
+            pinned={pinnedTime === teiaActive}
+            loading={teiaLoading}
+            error={teiaError}
+            onWindow={setTeiaWindow}
+            onClose={() => {
+              setPinnedTime(null);
+              setHoverTime(null);
+              hoverCandleRef.current = null;
+            }}
+          />
+        )}
       </div>
       {rsiOn && <div className="subpane"><span>RSI 14</span><div ref={rsiHost} className="pane-host" /></div>}
       {macdOn && <div className="subpane"><span>MACD</span><div ref={macdHost} className="pane-host" /></div>}
@@ -1021,7 +1192,7 @@ export default function ProChart({
         ))}
       </div>
       {note && candles.length > 0 && <p className="muted">{note}</p>}
-      <p className="muted">Atalhos: V navegar, S selecionar, T H R Q F P N M desenham, Delete apaga, Ctrl+Z desfaz, L troca a escala, 0 reseta. A roda e o arraste aproximam o gráfico.</p>
+      <p className="muted">Passe o mouse numa vela para abrir a teia. Clique para fixar. A camada Teia marca as velas com eventos gravados na janela anterior. Atalhos: V navegar, S selecionar, T H R Q F P N M desenham, Delete apaga, Ctrl+Z desfaz, Esc fecha a teia, L troca a escala, 0 reseta.</p>
     </div>
   );
 }
