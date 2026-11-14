@@ -1,4 +1,7 @@
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { StrategyEvaluation } from './evaluate';
+import { VERDICT_RULES, VerdictLabel } from './protocol';
 
 export interface ValidationDataset {
   symbol: string;
@@ -14,7 +17,7 @@ export interface ValidationStrategy {
   id: string;
   family: string;
   name: string;
-  verdict: 'aprovada' | 'inconclusiva' | 'reprovada (provável sorte/overfit)';
+  verdict: VerdictLabel;
   reason: string;
   note: string;
   metrics: StrategyEvaluation['metrics'] | null;
@@ -54,9 +57,18 @@ export function renderValidationMarkdown(report: ValidationReport): string {
     '',
     `Gerado em ${report.generatedAt}. O registro de tentativas está em \`${report.trialLog}\`.`,
     '',
-    'Uma estratégia só fica **aprovada** com pelo menos 30 decisões independentes no teste walk-forward, retorno depois das taxas acima de comprar e segurar, Sharpe deflacionado de pelo menos 0,95 e probabilidade de backtest overfitting abaixo de 0,50. Se ela emite direção, o teste dependente também precisa ficar abaixo de 0,05. Se emite P(alta), o Brier precisa bater a taxa-base.',
+    '## Regra do veredito',
     '',
-    '**Reprovada (provável sorte/overfit)** é um ganho que não se repetiu no teste, um Sharpe positivo que o número de tentativas esvazia, ou um menu cujo vencedor de um bloco perde no bloco complementar. O resto fica **inconclusiva**.',
+    ...VERDICT_RULES.flatMap(rule => [rule, '']),
+    'O comando `npm run validate` mede Aranha e crawler. Para o Kronos, numa máquina com o worker Python e os pesos:',
+    '',
+    '```bash',
+    'npm run validate -- --strategy kronos-m2',
+    'npm run validate -- --strategy kronos-m3',
+    'npm run validate -- --strategy kronos-rule',
+    '```',
+    '',
+    'Cada um baixa BTCUSDT 1h, grava o cache de previsões e substitui só essa linha do relatório.',
     '',
     '## Vereditos',
     '',
@@ -112,4 +124,39 @@ export function renderValidationMarkdown(report: ValidationReport): string {
   for (const note of report.notes) lines.push(`- ${note}`);
   lines.push('');
   return lines.join('\n');
+}
+
+export function readValidationReport(filePath = join('reports', 'validation-latest.json')): ValidationReport | null {
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8')) as ValidationReport;
+  } catch {
+    return null;
+  }
+}
+
+/** Replace one strategy row. The old id `kronos-regra-atual` is the same row as `kronos-rule`. */
+export function replaceStrategy(report: ValidationReport, strategy: ValidationStrategy): ValidationReport {
+  const retired = strategy.id === 'kronos-rule' ? 'kronos-regra-atual' : '';
+  const strategies: ValidationStrategy[] = [];
+  let placed = false;
+  for (const row of report.strategies) {
+    if (row.id === retired) continue;
+    if (row.id === strategy.id) {
+      strategies.push(strategy);
+      placed = true;
+    } else {
+      strategies.push(row);
+    }
+  }
+  if (!placed) {
+    const firstOther = strategies.findIndex(row => row.family !== strategy.family);
+    strategies.splice(firstOther < 0 ? strategies.length : firstOther, 0, strategy);
+  }
+  return { ...report, generatedAt: new Date().toISOString(), strategies };
+}
+
+export function writeValidationReport(report: ValidationReport, directory = 'reports'): void {
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, 'validation-latest.json'), JSON.stringify(report, null, 2) + '\n');
+  writeFileSync(join(directory, 'validation-latest.md'), renderValidationMarkdown(report));
 }

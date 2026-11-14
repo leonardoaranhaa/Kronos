@@ -1,11 +1,6 @@
 /**
  * Gates fixed before the validation run. They are not moved after seeing a result.
- *
- * A strategy is "aprovada" only when the walk-forward test, the deflated Sharpe
- * and the probability of backtest overfitting all clear these bars.
- * "reprovada (provável sorte/overfit)" is a positive-looking result that fails
- * one of those bars, or an in-sample gain that the walk-forward test does not repeat.
- * Anything without enough independent decisions stays "inconclusiva".
+ * The Portuguese text in VERDICT_RULES is the rule the report prints.
  */
 export const VALIDATION_GATES = Object.freeze({
   minIndependentDecisions: 30,
@@ -20,6 +15,20 @@ export const VALIDATION_GATES = Object.freeze({
 });
 
 export type Verdict = 'aprovada' | 'inconclusiva' | 'reprovada';
+
+export type VerdictLabel =
+  | 'aprovada'
+  | 'inconclusiva'
+  | 'reprovada'
+  | 'reprovada (provável sorte/overfit)';
+
+/** Exact rule, printed in reports/validation-latest.md. */
+export const VERDICT_RULES: readonly string[] = [
+  '**Aprovada** só quando o teste walk-forward, depois das taxas, passa de comprar e segurar, o Sharpe deflacionado fica em pelo menos 0,95, a probabilidade de backtest overfitting fica abaixo de 0,50, há pelo menos 30 observações de retorno e, se a estratégia emite direção, pelo menos 30 decisões independentes com p-valor abaixo de 0,05. Se emite P(alta), o Brier tem de ser melhor que a taxa-base.',
+  '**Reprovada** quando essa medição existe e a estratégia não passa. Perder para comprar e segurar no teste, com Sharpe calculado, reprova mesmo se o acerto ficar um pouco acima de 50% e mesmo se o DSR for quase zero. O mesmo vale se o treino também perdeu.',
+  '**Reprovada (provável sorte/overfit)** é o caso em que o ganho do treino não se repete no teste, o Sharpe do teste é positivo mas o deflacionado fica abaixo de 0,95, ou o PBO fica em 0,50 ou mais.',
+  '**Inconclusiva** só por falta de dados ou de amostra: sem modelo ou sem previsões, menos de 30 observações de retorno, ou uma série parada (nenhum trade, Sharpe inexistente). Um resultado econômico medido não fica inconclusivo.'
+];
 
 export interface VerdictInput {
   independentDecisions: number | null;
@@ -38,12 +47,11 @@ export interface VerdictInput {
 
 export interface VerdictResult {
   verdict: Verdict;
-  label: 'aprovada' | 'inconclusiva' | 'reprovada (provável sorte/overfit)';
+  label: VerdictLabel;
   reason: string;
 }
 
 export function decideVerdict(input: VerdictInput): VerdictResult {
-  const enoughDecisions = (input.independentDecisions ?? 0) >= VALIDATION_GATES.minIndependentDecisions;
   const enoughReturns = (input.returnObservations ?? 0) >= VALIDATION_GATES.minReturnObservations;
   if (enoughReturns && input.excessReturn !== null && input.perPeriodSharpe === null) {
     return {
@@ -52,17 +60,19 @@ export function decideVerdict(input: VerdictInput): VerdictResult {
       reason: 'A série de retornos não varia, então o Sharpe não existe. Ficar parado não é aprovação, mesmo quando comprar e segurar caiu no mesmo período.'
     };
   }
-  if (!enoughDecisions || !enoughReturns || input.excessReturn === null) {
+  if (!enoughReturns || input.excessReturn === null) {
     return {
       verdict: 'inconclusiva',
       label: 'inconclusiva',
       reason: 'Amostra curta demais, ou sem a série de retornos, para separar vantagem de acaso.'
     };
   }
-  const directionFails = input.hasDirection
-    && (input.directionPValue === null || input.directionPValue >= VALIDATION_GATES.directionalAlpha);
-  const probabilityFails = input.hasProbability
-    && (input.brier === null || input.climatologyBrier === null || !(input.brier < input.climatologyBrier));
+  const directionReady = !input.hasDirection
+    || ((input.independentDecisions ?? 0) >= VALIDATION_GATES.minIndependentDecisions
+      && input.directionPValue !== null
+      && input.directionPValue < VALIDATION_GATES.directionalAlpha);
+  const probabilityReady = !input.hasProbability
+    || (input.brier !== null && input.climatologyBrier !== null && input.brier < input.climatologyBrier);
   const sharpeSupported = input.deflatedSharpe !== null && input.deflatedSharpe >= VALIDATION_GATES.deflatedSharpeMin;
   const overfitClear = input.probabilityOfOverfit !== null
     && input.probabilityOfOverfit < VALIDATION_GATES.maxProbabilityOfOverfit;
@@ -71,11 +81,11 @@ export function decideVerdict(input: VerdictInput): VerdictResult {
   const luckySharpe = input.perPeriodSharpe !== null && input.perPeriodSharpe > 0 && !sharpeSupported;
   const overfitMenu = input.probabilityOfOverfit !== null && input.probabilityOfOverfit >= VALIDATION_GATES.maxProbabilityOfOverfit;
 
-  if (beatHold && sharpeSupported && overfitClear && !directionFails && !probabilityFails) {
+  if (beatHold && sharpeSupported && overfitClear && directionReady && probabilityReady) {
     return {
       verdict: 'aprovada',
       label: 'aprovada',
-      reason: 'No teste walk-forward, depois das taxas, passou do comprar-e-segurar, o Sharpe deflacionado ficou em pelo menos 0,95 e a probabilidade de overfit ficou abaixo de 0,50.'
+      reason: 'No teste walk-forward, depois das taxas, passou de comprar e segurar, o Sharpe deflacionado ficou em pelo menos 0,95 e a probabilidade de overfit ficou abaixo de 0,50.'
     };
   }
   if (gainDidNotRepeat || luckySharpe || overfitMenu) {
@@ -89,16 +99,26 @@ export function decideVerdict(input: VerdictInput): VerdictResult {
           : 'O Sharpe do teste é positivo, mas o Sharpe deflacionado pelo número de tentativas não chega a 0,95.'
     };
   }
-  if (input.excessReturn <= 0 && (input.trainExcessReturn === null || input.trainExcessReturn <= 0)) {
+  if (!beatHold) {
+    const bothSides = input.trainExcessReturn !== null && input.trainExcessReturn <= 0
+      ? 'no treino e no teste'
+      : 'no teste';
+    return {
+      verdict: 'reprovada',
+      label: 'reprovada',
+      reason: `Depois das taxas, o walk-forward ficou atrás de comprar e segurar ${bothSides}. O Sharpe desta série não sustenta vantagem. Acerto perto ou acima de 50% não muda esse veredito.`
+    };
+  }
+  if (input.hasDirection && (input.independentDecisions ?? 0) < VALIDATION_GATES.minIndependentDecisions) {
     return {
       verdict: 'inconclusiva',
       label: 'inconclusiva',
-      reason: 'Depois das taxas, o walk-forward ficou atrás de comprar e segurar no treino e no teste. Não há aprovação e não há um ganho de amostra que o teste tenha derrubado.'
+      reason: 'O retorno foi medido, mas há menos de 30 decisões independentes de direção. Falta amostra para fechar o veredito.'
     };
   }
   return {
-    verdict: 'inconclusiva',
-    label: 'inconclusiva',
-    reason: 'O teste não fecha uma vantagem. A direção, a calibração ou o tamanho da amostra não passam dos limites, e também não há um ganho de treino desmentido no teste.'
+    verdict: 'reprovada',
+    label: 'reprovada',
+    reason: 'A medição existe e a estratégia não passou na direção, na calibração ou no Sharpe deflacionado.'
   };
 }

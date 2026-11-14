@@ -1,12 +1,26 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BACKTEST_UNIVERSE } from '../crawler/config';
 import { loadEnvFile } from '../load-env';
 import { tuneGridSize } from '../research-protocol';
 import { downloadKlines, asMarketBars } from './download';
 import { evaluateFamily, StrategyEvaluation } from './evaluate';
+import {
+  ensureForecastCache,
+  KronosStrategyId,
+  kronosSeriesFromForecasts,
+  kronosStrategyPlan,
+  loadKronosCandles,
+  parseStrategyFlag,
+  ropePatchApplied
+} from './kronos-run';
 import { VALIDATION_GATES } from './protocol';
-import { ValidationReport, ValidationStrategy, renderValidationMarkdown } from './report';
+import {
+  readValidationReport,
+  replaceStrategy,
+  ValidationReport,
+  ValidationStrategy,
+  writeValidationReport
+} from './report';
 import { aranhaStrategies, crawlerStrategies } from './series';
 import { readTrials, trialCount, trialId, upsertTrial, TrialEntry } from './trials';
 
@@ -50,7 +64,74 @@ function logFor(family: string): TrialEntry[] {
   return readTrials(TRIAL_LOG).filter(entry => entry.family === family);
 }
 
+async function runKronosCommand(id: KronosStrategyId): Promise<void> {
+  const plan = kronosStrategyPlan(id);
+  if ((id === 'kronos-m3' || id === 'kronos-rule') && !ropePatchApplied()) {
+    throw new Error('O patch de RoPE não está em external/Kronos. Rode bash scripts/setup-kronos.sh antes deste comando.');
+  }
+  if (id === 'kronos-m2' && ropePatchApplied()) {
+    console.log('[validação] O checkout já tem o patch de RoPE. O M2 deixa o tokenizer em treino, mas não desfaz o patch.');
+  }
+  const downloaded = await loadKronosCandles();
+  const cache = await ensureForecastCache(downloaded.candles, downloaded.sha256, plan);
+  const series = kronosSeriesFromForecasts(downloaded.candles, cache, plan);
+  const [evaluation] = evaluateFamily(series, logFor('kronos'));
+  const row = fromEvaluation(evaluation);
+  if (id === 'kronos-m2' && ropePatchApplied()) {
+    row.note += ' O checkout local já contém o patch de RoPE, então isto não é o binário anterior ao patch.';
+  }
+  remember(evaluation, {
+    tag: plan.cacheTag,
+    tokenizerEval: plan.tokenizerEval,
+    minMoveBps: plan.params.minMoveBps,
+    trendFilter: plan.params.trendFilter,
+    rsiBuyMax: plan.params.rsiBuyMax ?? null
+  });
+  const existing = readValidationReport();
+  const base: ValidationReport = existing ?? {
+    generatedAt: new Date().toISOString(),
+    disclaimer: 'Simulação de pesquisa. Nenhuma ordem real foi enviada. Um número ruim continua publicado. Isto não é conselho de investimento.',
+    gates: {
+      minIndependentDecisions: VALIDATION_GATES.minIndependentDecisions,
+      deflatedSharpeMin: VALIDATION_GATES.deflatedSharpeMin,
+      maxProbabilityOfOverfit: VALIDATION_GATES.maxProbabilityOfOverfit,
+      directionalAlpha: VALIDATION_GATES.directionalAlpha
+    },
+    trialLog: TRIAL_LOG,
+    trialsByFamily: {},
+    datasets: [],
+    strategies: [],
+    notes: []
+  };
+  const dataset = {
+    symbol: 'BTCUSDT',
+    interval: '1h',
+    candles: downloaded.candles.length,
+    firstOpenTime: downloaded.candles[0]?.openTime ?? null,
+    lastOpenTime: downloaded.candles[downloaded.candles.length - 1]?.openTime ?? null,
+    sha256: downloaded.sha256,
+    source: 'https://data-api.binance.vision/api/v3/klines'
+  };
+  const datasets = base.datasets.filter(row => !(row.symbol === 'BTCUSDT' && row.interval === '1h' && row.sha256 === dataset.sha256));
+  const logged = readTrials(TRIAL_LOG);
+  const report = replaceStrategy({
+    ...base,
+    datasets: [dataset, ...datasets],
+    trialsByFamily: { ...base.trialsByFamily, kronos: trialCount(logged, 'kronos') },
+    notes: base.notes.some(note => note.includes(plan.id))
+      ? base.notes
+      : [...base.notes, `${plan.name} foi medido com o worker local. O cache fica em data/research-cache/.`]
+  }, row);
+  writeValidationReport(report);
+  console.log(`${row.name}: ${row.verdict}`);
+}
+
 async function main(): Promise<void> {
+  const selected = parseStrategyFlag(process.argv);
+  if (selected) {
+    await runKronosCommand(selected);
+    return;
+  }
   const now = Date.now();
   const strategies: ValidationStrategy[] = [];
   const datasets: ValidationReport['datasets'] = [];
@@ -158,7 +239,7 @@ async function main(): Promise<void> {
   strategies.unshift(
     unavailable('kronos-m2', 'kronos', 'Kronos M2: regra escolhida na amostra', kronosReason, 'A grade de 108 combinações está no registro de tentativas, sem o Sharpe de cada uma.'),
     unavailable('kronos-m3', 'kronos', 'Kronos M3: a mesma regra depois do RoPE', kronosReason, 'O M3 não buscou regra nova. Sem o mesmo snapshot e sem as previsões, a comparação antes/depois não foi refeita.'),
-    unavailable('kronos-regra-atual', 'kronos', 'Kronos: regra atual', kronosReason, 'A regra atual usa a previsão do modelo, o filtro de média e o bloqueio de RSI. Sem previsão, não há o que validar.')
+    unavailable('kronos-rule', 'kronos', 'Kronos: regra atual', kronosReason, 'A regra atual usa a previsão do modelo, o filtro de média e o bloqueio de RSI. Sem previsão, não há o que validar. Rode npm run validate -- --strategy kronos-rule numa máquina com o worker.')
   );
 
   const logged = readTrials(TRIAL_LOG);
@@ -181,9 +262,7 @@ async function main(): Promise<void> {
     strategies,
     notes
   };
-  mkdirSync('reports', { recursive: true });
-  writeFileSync('reports/validation-latest.json', JSON.stringify(report, null, 2) + '\n');
-  writeFileSync('reports/validation-latest.md', renderValidationMarkdown(report));
+  writeValidationReport(report);
   console.log(report.strategies.map(strategy => `${strategy.name}: ${strategy.verdict}`).join('\n'));
 }
 

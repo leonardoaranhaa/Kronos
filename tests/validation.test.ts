@@ -11,11 +11,14 @@ import { directionTest } from '../server/validation/dependence';
 import { recordedM2Dataset } from '../server/validation/m2-dataset';
 import { standardNormalCdf, standardNormalQuantile } from '../server/validation/normal';
 import { probabilityOfBacktestOverfitting } from '../server/validation/pbo';
-import { decideVerdict } from '../server/validation/protocol';
+import { kronosSeriesFromForecasts, kronosStrategyPlan, parseStrategyFlag } from '../server/validation/kronos-run';
+import { decideVerdict, VERDICT_RULES } from '../server/validation/protocol';
+import { renderValidationMarkdown, replaceStrategy, ValidationReport } from '../server/validation/report';
 import { deflatedSharpeRatio, expectedMaximumSharpe, probabilisticSharpeRatio, sharpeRatio } from '../server/validation/sharpe';
 import { combinatorialPurgedFolds, purgedTrainIndexes, walkForwardFolds } from '../server/validation/splits';
 import { selectNormalizedSnapshot } from '../server/validation/snapshot';
 import { readTrials, trialCount, upsertTrial } from '../server/validation/trials';
+import { series } from './fixtures';
 
 test('normal cdf and quantile match published anchors', () => {
   assert.ok(Math.abs(standardNormalCdf(0) - 0.5) < 1e-4);
@@ -144,11 +147,32 @@ test('verdicts follow the gates fixed before the run', () => {
   assert.equal(decideVerdict({ ...base, probabilityOfOverfit: 0.8 }).label, 'reprovada (provável sorte/overfit)');
   assert.equal(decideVerdict({
     ...base,
-    excessReturn: -0.04,
-    trainExcessReturn: -0.02,
-    perPeriodSharpe: -0.1,
-    deflatedSharpe: 0.01,
-    probabilityOfOverfit: 0.2
+    excessReturn: -0.0741,
+    trainExcessReturn: -0.3556,
+    perPeriodSharpe: -0.136,
+    deflatedSharpe: 0.007,
+    probabilityOfOverfit: 0.002,
+    directionPValue: 0.222,
+    independentDecisions: 138,
+    returnObservations: 138
+  }).label, 'reprovada');
+  assert.equal(decideVerdict({
+    ...base,
+    excessReturn: -0.28,
+    trainExcessReturn: -0.26,
+    perPeriodSharpe: -0.5,
+    deflatedSharpe: 0,
+    probabilityOfOverfit: 0.013,
+    directionPValue: 0.84,
+    independentDecisions: 168,
+    returnObservations: 169
+  }).label, 'reprovada');
+  assert.equal(decideVerdict({
+    ...base,
+    returnObservations: 12,
+    independentDecisions: 12,
+    perPeriodSharpe: -0.2,
+    excessReturn: -0.1
   }).label, 'inconclusiva');
 });
 
@@ -226,6 +250,79 @@ test('the trial log counts a repeated variation once and a grid by its size', ()
   assert.equal(trialCount(entries, 'aranha'), 1);
   assert.equal(trialCount(entries, 'kronos'), 108);
   assert.equal(entries.find(entry => entry.family === 'aranha')?.sharpe, 0.2);
+});
+
+test('the report prints the exact verdict rule', () => {
+  const report: ValidationReport = {
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    disclaimer: 'teste',
+    gates: { minIndependentDecisions: 30, deflatedSharpeMin: 0.95, maxProbabilityOfOverfit: 0.5, directionalAlpha: 0.05 },
+    trialLog: 'reports/trial-log.jsonl',
+    trialsByFamily: {},
+    datasets: [],
+    strategies: [],
+    notes: []
+  };
+  const markdown = renderValidationMarkdown(report);
+  for (const rule of VERDICT_RULES) {
+    assert.ok(markdown.includes(rule), rule.slice(0, 40));
+  }
+  assert.match(markdown, /npm run validate -- --strategy kronos-m2/);
+  assert.match(markdown, /kronos-rule/);
+});
+
+test('a kronos strategy flag is one of the three documented names', () => {
+  assert.equal(parseStrategyFlag(['node', 'cli']), null);
+  assert.equal(parseStrategyFlag(['node', '--strategy', 'kronos-m2']), 'kronos-m2');
+  assert.equal(parseStrategyFlag(['node', '--strategy=kronos-rule']), 'kronos-rule');
+  assert.throws(() => parseStrategyFlag(['node', '--strategy', 'aranha']), /desconhecida/);
+});
+
+test('cached forecasts become a kronos rule series without starting the model', () => {
+  const candles = series(280, index => 100 + index * 0.2);
+  const forecasts = new Map<number, { openTime: number; meanCloses: number[]; sampleEnds: number[]; datasetSha256: string }>();
+  for (let index = 255; index + 6 < candles.length; index += 12) {
+    const close = candles[index].close;
+    forecasts.set(candles[index].openTime, {
+      openTime: candles[index].openTime,
+      meanCloses: [close, close, close, close, close, close * 1.01],
+      sampleEnds: [close * 1.01, close * 1.02, close * 0.99, close * 1.0],
+      datasetSha256: 'abc'
+    });
+  }
+  const [rule] = kronosSeriesFromForecasts(candles, forecasts, kronosStrategyPlan('kronos-rule'));
+  assert.equal(rule.id, 'kronos-rule');
+  assert.ok(rule.returns.length >= 2);
+  assert.equal(rule.returns.length, rule.benchmarkReturns.length);
+  assert.equal(rule.hasProbability, true);
+});
+
+test('replacing a kronos row keeps the other strategies', () => {
+  const report: ValidationReport = {
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    disclaimer: 'teste',
+    gates: { minIndependentDecisions: 30, deflatedSharpeMin: 0.95, maxProbabilityOfOverfit: 0.5, directionalAlpha: 0.05 },
+    trialLog: 'reports/trial-log.jsonl',
+    trialsByFamily: { kronos: 108 },
+    datasets: [],
+    strategies: [
+      { id: 'kronos-rule', family: 'kronos', name: 'Kronos: regra atual', verdict: 'inconclusiva', reason: 'sem modelo', note: '', metrics: null },
+      { id: 'aranha-analogs', family: 'aranha', name: 'Aranha: análogos', verdict: 'reprovada', reason: 'perdeu', note: '', metrics: null }
+    ],
+    notes: []
+  };
+  const next = replaceStrategy(report, {
+    id: 'kronos-rule',
+    family: 'kronos',
+    name: 'Kronos: regra atual',
+    verdict: 'reprovada',
+    reason: 'medido',
+    note: '',
+    metrics: null
+  });
+  assert.equal(next.strategies.length, 2);
+  assert.equal(next.strategies[0].verdict, 'reprovada');
+  assert.equal(next.strategies[1].id, 'aranha-analogs');
 });
 
 test('the validation route is GET only', () => {
