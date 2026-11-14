@@ -1,0 +1,48 @@
+name: Research pipeline validation
+
+on:
+  push:
+    branches:
+      - engineering/foundation-audit
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: research-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Test candle validation
+        run: npm run test:candles
+
+      - name: Test Binance feed normalization
+        run: npm run test:binance
+
+      - name: Build application
+        run: npm run build
+
+      - name: Check Python worker syntax
+        run: python -m py_compile server/kronos_worker.py
+
+      - name: Check setup script syntax
+        run: bash -n scripts/setup-kronos.sh

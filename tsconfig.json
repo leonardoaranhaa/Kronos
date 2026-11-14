@@ -23,5 +23,11 @@
     "src",
     "server",
     "shared"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "server/order_execution.ts",
+    "server/test_binance_execution.ts"
   ]
 }

@@ -1,11 +1,15 @@
+import { loadEnvFile } from './load-env';
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
+import { readFile } from 'node:fs/promises';
 import { KronosBridge } from './kronos-bridge';
 import { MarketFeed } from './market-feed';
-import { OrderExecutionManager } from './order_execution';
-import { Candle } from '../shared/types';
+import { CanonicalCandle } from '../shared/types';
+import { auditCandleSeries, validateCanonicalCandle } from './candle-validation';
+
+loadEnvFile();
 
 const app = express();
 app.use(cors());
@@ -14,71 +18,105 @@ app.use(express.json());
 const httpServer = createServer(app);
 const wss = new WebSocketServer({ server: httpServer });
 
-const PORT = process.env.PORT || 3000;
-const FEED_MODE = (process.env.FEED_MODE as 'replay' | 'binance') || 'replay';
+const PORT = Number(process.env.PORT || 3000);
+const FEED_MODE = (process.env.FEED_MODE || 'binance') as 'replay' | 'binance';
+const SYMBOL = (process.env.SYMBOL || 'BTCUSDT').toUpperCase();
+const TIMEFRAME = process.env.TIMEFRAME || '5m';
 
 const bridge = new KronosBridge();
 const feed = new MarketFeed(FEED_MODE);
-const candleHistory: Candle[] = [];
+const candleHistory: CanonicalCandle[] = [];
+const MAX_HISTORY = 600;
 
-const executor = new OrderExecutionManager({
-  apiKey: process.env.BINANCE_API_KEY || '',
-  apiSecret: process.env.BINANCE_API_SECRET || '',
-  baseUrl: process.env.BINANCE_BASE_URL || 'https://testnet.binance.vision'
-});
-
-bridge.start();
-
-function broadcast(data: any) {
+function broadcast(data: unknown) {
   const payload = JSON.stringify(data);
   wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(payload);
-    }
+    if (client.readyState === WebSocket.OPEN) client.send(payload);
   });
 }
 
-bridge.on('prediction', (predictionData) => {
-  broadcast({
-    type: 'KRONOS_AI_PREDICTION',
-    payload: {
-      timestamp: predictionData.timestamp,
-      predictedCloses: predictionData.predictions
-    }
-  });
-});
+async function loadHistoricalData(): Promise<void> {
+  const path = process.env.HISTORICAL_DATA_PATH;
+  if (!path) return;
 
-feed.on('candle', (candle: Candle) => {
+  const content = await readFile(path, 'utf8');
+  const candles = content.split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line) as CanonicalCandle);
+  const quality = auditCandleSeries(candles);
+  if (!quality.valid) {
+    throw new Error(`Historical dataset failed integrity audit: ${quality.errors.join('; ')}`);
+  }
+  if (candles.some(candle =>
+    candle.venue !== 'binance' ||
+    candle.source !== 'historical' ||
+    candle.symbol !== SYMBOL ||
+    candle.interval !== TIMEFRAME
+  )) {
+    throw new Error('Historical dataset provenance, symbol or timeframe does not match the Binance configuration');
+  }
+  candleHistory.push(...candles.slice(-MAX_HISTORY));
+  console.log(`[Data] Loaded ${candleHistory.length} validated historical candles`);
+}
+
+bridge.on('model-status', data => broadcast({ type: 'KRONOS_MODEL_STATUS', payload: data }));
+bridge.on('model-error', data => broadcast({ type: 'KRONOS_MODEL_ERROR', payload: data }));
+bridge.on('prediction', prediction => broadcast({ type: 'KRONOS_AI_PREDICTION', payload: prediction }));
+
+feed.on('status', data => broadcast({ type: 'FEED_STATUS', payload: data }));
+feed.on('feed-error', data => broadcast({ type: 'FEED_ERROR', payload: data }));
+
+feed.on('candle', (candle: CanonicalCandle) => {
+  const last = candleHistory[candleHistory.length - 1];
+  if (last && candle.openTime <= last.openTime) {
+    broadcast({ type: 'DATA_QUALITY_WARNING', payload: { message: 'Duplicate or out-of-order candle ignored', openTime: candle.openTime } });
+    return;
+  }
+
   candleHistory.push(candle);
-  if (candleHistory.length > 300) candleHistory.shift();
+  if (candleHistory.length > MAX_HISTORY) candleHistory.shift();
 
-  const vpin = parseFloat((Math.random() * 0.4 + 0.15).toFixed(2));
-  const ofi = parseFloat(((Math.random() - 0.48) * 120).toFixed(2));
+  const quality = auditCandleSeries(candleHistory);
+  if (!quality.valid) {
+    broadcast({ type: 'DATA_QUALITY_WARNING', payload: { errors: quality.errors.slice(0, 10) } });
+  } else {
+    const indicators = bridge.processTick(candle, candleHistory);
+    broadcast({ type: 'MARKET_TICK', payload: { candle, indicators } });
+  }
+});
 
-  const { indicators, signal } = bridge.processTick(candle, candleHistory, false, vpin);
-
-  broadcast({
-    type: 'MARKET_TICK',
-    payload: {
-      candle,
-      indicators,
-      signal,
-      vpin,
-      ofi
-    }
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    feedMode: FEED_MODE,
+    feedStatus: feed.getStatus(),
+    modelStatus: bridge.getStatus(),
+    symbol: SYMBOL,
+    timeframe: TIMEFRAME,
+    historyCount: candleHistory.length
   });
 });
 
-feed.start();
-
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', feedMode: FEED_MODE, historyCount: candleHistory.length });
-});
-
-app.get('/api/history', (req, res) => {
+app.get('/api/history', (_req, res) => {
   res.json({ candles: candleHistory.slice(-100) });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`[Kronos Server] Servidor a executar em http://localhost:${PORT}`);
+async function bootstrap() {
+  await loadHistoricalData();
+  bridge.start();
+  feed.start();
+  httpServer.listen(PORT, () => {
+    console.log(`[Kronos Research Server] Listening on http://localhost:${PORT}`);
+  });
+}
+
+function shutdown() {
+  feed.stop();
+  bridge.stop();
+  httpServer.close();
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+bootstrap().catch(error => {
+  console.error('[Kronos Startup Error]', error);
+  process.exitCode = 1;
 });

@@ -1,3 +1,6 @@
+/**
+ * Legacy candle shape retained for the existing indicator engine.
+ */
 export interface Candle {
   timestamp: number;
   open: number;
@@ -5,6 +8,40 @@ export interface Candle {
   low: number;
   close: number;
   volume: number;
+}
+
+export type CandleSource = 'historical' | 'websocket' | 'replay';
+
+/** Canonical OHLCV record. Timestamps are Unix milliseconds. */
+export interface CanonicalCandle {
+  venue: string;
+  symbol: string;
+  interval: string;
+  openTime: number;
+  closeTime: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  /** Binance quote-asset volume; maps to Kronos' optional amount feature. */
+  quoteVolume?: number;
+  source: CandleSource;
+  ingestedAt: number;
+}
+
+export interface CandleValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+export interface CandleSeriesQuality {
+  valid: boolean;
+  errors: string[];
+  duplicateOpenTimes: number[];
+  missingIntervals: number[];
+  receivedCount: number;
+  acceptedCount: number;
 }
 
 export interface TechnicalIndicators {
@@ -32,9 +69,6 @@ export interface KronosPrediction {
 }
 
 export interface MarketTickPayload {
-  candle: Candle;
+  candle: CanonicalCandle;
   indicators: TechnicalIndicators;
-  signal: AggressiveSignal;
-  vpin: number;
-  ofi: number;
 }
