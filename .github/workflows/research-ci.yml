@@ -3,10 +3,12 @@ name: Research pipeline validation
 on:
   push:
     branches:
+      - main
       - engineering/p1-data-integrity
       - engineering/foundation-audit
   pull_request:
     branches:
+      - main
       - engineering/foundation-audit
       - engineering/p1-data-integrity
 
