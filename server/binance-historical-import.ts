@@ -9,8 +9,9 @@ loadEnvFile();
 
 const symbol = (process.env.SYMBOL || 'BTCUSDT').toUpperCase();
 const interval = process.env.TIMEFRAME || '5m';
-const intervalMs = intervalToMilliseconds(interval);
-if (intervalMs === null) throw new Error(`Unsupported interval: ${interval}`);
+const parsedIntervalMs = intervalToMilliseconds(interval);
+if (parsedIntervalMs === null) throw new Error(`Unsupported interval: ${interval}`);
+const intervalMs = parsedIntervalMs;
 
 const endTime = Number(process.env.END_TIME || Date.now());
 const startTime = Number(process.env.START_TIME || (endTime - intervalMs * 1000));
