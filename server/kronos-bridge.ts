@@ -16,7 +16,8 @@ export class KronosBridge extends EventEmitter {
     super();
     this.maxContext = Math.min(512, Math.max(32, options.maxContext ?? Number(process.env.KRONOS_MAX_CONTEXT || 400)));
     this.horizon = Math.max(1, Math.min(64, options.horizon ?? Number(process.env.KRONOS_PREDICTION_HORIZON || 5)));
-    this.sampleCount = Math.max(1, Math.min(8, options.sampleCount ?? 1));
+    const fromEnv = Number(process.env.KRONOS_SAMPLE_COUNT || 1);
+    this.sampleCount = Math.max(1, Math.min(8, options.sampleCount ?? (Number.isFinite(fromEnv) ? fromEnv : 1)));
   }
 
   public getStatus(): string {

@@ -3,10 +3,12 @@ import { useEffect, useRef } from 'react';
 interface PriceChartProps {
   closes: number[];
   forecast: number[];
+  bandLow?: number[];
+  bandHigh?: number[];
 }
 
 /** Close line plus the model path. The forecast is drawn after the last close. */
-export default function PriceChart({ closes, forecast }: PriceChartProps) {
+export default function PriceChart({ closes, forecast, bandLow = [], bandHigh = [] }: PriceChartProps) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export default function PriceChart({ closes, forecast }: PriceChartProps) {
         return;
       }
       const pad = 18;
-      const points = closes.concat(forecast);
+      const points = closes.concat(forecast, bandLow, bandHigh);
       const min = Math.min(...points);
       const max = Math.max(...points);
       const span = max - min || 1;
@@ -55,6 +57,16 @@ export default function PriceChart({ closes, forecast }: PriceChartProps) {
       });
       ctx.stroke();
 
+      if (forecast.length > 0 && bandLow.length === forecast.length && bandHigh.length === forecast.length) {
+        const start = closes.length - 1;
+        ctx.beginPath();
+        ctx.moveTo(x(start), y(closes[start]));
+        bandHigh.forEach((value, index) => ctx.lineTo(x(start + 1 + index), y(value)));
+        for (let index = bandLow.length - 1; index >= 0; index--) ctx.lineTo(x(start + 1 + index), y(bandLow[index]));
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(167, 139, 250, 0.25)';
+        ctx.fill();
+      }
       if (forecast.length > 0) {
         ctx.beginPath();
         ctx.strokeStyle = '#a78bfa';
@@ -76,7 +88,7 @@ export default function PriceChart({ closes, forecast }: PriceChartProps) {
     const observer = new ResizeObserver(draw);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [closes, forecast]);
+  }, [closes, forecast, bandLow, bandHigh]);
 
   return <canvas ref={ref} className="chart" aria-label="Gráfico de preço e previsão" />;
 }

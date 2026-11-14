@@ -102,6 +102,9 @@ export default function App() {
   const [closes, setCloses] = useState<number[]>([]);
   const [price, setPrice] = useState<number | null>(null);
   const [forecast, setForecast] = useState<number[]>([]);
+  const [bandLow, setBandLow] = useState<number[]>([]);
+  const [bandHigh, setBandHigh] = useState<number[]>([]);
+  const [pUp, setPUp] = useState<number | null>(null);
   const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null);
   const [paper, setPaper] = useState<PaperView | null>(null);
   const [history, setHistory] = useState<HistoryView | null>(null);
@@ -117,11 +120,23 @@ export default function App() {
     rows?: { symbol: string; interval: string; split: string; strategy: string; returnPct: number; maxDrawdownPct: number; winRatePct: number | null; closedTrades: number; sharpe: number | null }[];
   } | null>(null);
   const [researchError, setResearchError] = useState('');
+  const [patchCompare, setPatchCompare] = useState<{
+    before?: { accuracy: number; pValue: number; tunedReturnPct: number; buyAndHoldReturnPct: number };
+    after?: { accuracy: number | null; pValue: number | null; tunedReturnPct: number; buyAndHoldReturnPct: number; tunedTrades: number };
+    reliability?: { pUp: number; count: number; realizedUpRate: number | null }[];
+  } | null>(null);
 
   useEffect(() => {
     const apply = (payload: { indicators?: TechnicalIndicators; forecast?: number[]; paper?: PaperView; history?: HistoryView; candle?: CanonicalCandle | null }) => {
       if (payload.indicators) setIndicators(payload.indicators);
       if (payload.forecast) setForecast(payload.forecast);
+      const initialBand = (payload as { quantileBand?: { p10?: number[]; p90?: number[] }; pUp?: number }).quantileBand;
+      if (initialBand) {
+        setBandLow(Array.isArray(initialBand.p10) ? initialBand.p10 : []);
+        setBandHigh(Array.isArray(initialBand.p90) ? initialBand.p90 : []);
+      }
+      const initialP = (payload as { pUp?: number }).pUp;
+      if (typeof initialP === 'number') setPUp(initialP);
       if (payload.paper) setPaper(payload.paper);
       if (payload.history) setHistory(payload.history);
       if (payload.candle) setPrice(payload.candle.close);
@@ -139,6 +154,11 @@ export default function App() {
       const candles = (payload.candles || []) as CanonicalCandle[];
       setCloses(candles.map(candle => candle.close));
       if (candles.length) setPrice(candles[candles.length - 1].close);
+    }).catch(() => undefined);
+
+    fetch('/api/research-m3').then(async response => {
+      if (!response.ok) return;
+      setPatchCompare(await response.json());
     }).catch(() => undefined);
 
     fetch('/api/research').then(async response => {
@@ -166,6 +186,10 @@ export default function App() {
       } else if (message.type === 'KRONOS_AI_PREDICTION') {
         const predicted = message.payload.predictedCloses || message.payload.predictions || [];
         setForecast(predicted);
+        const band = message.payload.quantileBand;
+        setBandLow(Array.isArray(band?.p10) ? band.p10 : []);
+        setBandHigh(Array.isArray(band?.p90) ? band.p90 : []);
+        setPUp(typeof message.payload.pUp === 'number' ? message.payload.pUp : null);
         if (message.payload.signal) {
           setPaper(current => current ? { ...current, signal: message.payload.signal, signalPending: true } : current);
         }
@@ -218,11 +242,12 @@ export default function App() {
               Força heurística: {signal ? pct.format(signal.heuristicScore * 100) : '0,00'}%. Isto não é probabilidade de acerto.
             </p>
             <p className="muted">{paper?.signalPending ? 'Sinal aguardando a próxima abertura para simular a execução.' : 'Sem execução pendente.'}</p>
+            <p className="muted">{pUp === null ? 'P(alta) aparece quando há mais de uma amostra.' : `P(alta) das amostras: ${pct.format(pUp * 100)}%.`}</p>
           </section>
           <section className="card">
             <h2>Preço e previsão</h2>
             <div className="signal">{price === null || price === undefined ? '—' : `${money.format(price)} USDT`}</div>
-            <PriceChart closes={closes} forecast={forecast} />
+            <PriceChart closes={closes} forecast={forecast} bandLow={bandLow} bandHigh={bandHigh} />
             <div className="legend">
               <span><i className="swatch price" /> Fechamento</span>
               <span><i className="swatch forecast" /> Previsão do modelo</span>
@@ -373,6 +398,29 @@ export default function App() {
               <div className="callout">
                 {(research.promotionReasons || []).map(line => <p key={line}>{line}</p>)}
               </div>
+              {patchCompare?.before && patchCompare.after && (
+                <>
+                  <h2>Depois do conserto de RoPE</h2>
+                  <p>
+                    Mesma regra, sem nova busca. Direção {pct.format((patchCompare.before.accuracy ?? 0) * 100)}% (p={patchCompare.before.pValue.toFixed(3)})
+                    passou a {pct.format((patchCompare.after.accuracy ?? 0) * 100)}% (p={(patchCompare.after.pValue ?? 0).toFixed(3)}).
+                    A regra foi de {pct.format(patchCompare.before.tunedReturnPct)}% para {pct.format(patchCompare.after.tunedReturnPct)}%.
+                    Comprar e segurar continuou em {pct.format(patchCompare.after.buyAndHoldReturnPct)}%.
+                  </p>
+                  <table>
+                    <thead><tr><th>P(alta)</th><th>Previsões</th><th>Preço subiu</th></tr></thead>
+                    <tbody>
+                      {(patchCompare.reliability || []).map(bin => (
+                        <tr key={bin.pUp}>
+                          <td>{pct.format(bin.pUp * 100)}%</td>
+                          <td>{bin.count}</td>
+                          <td>{bin.realizedUpRate === null ? '—' : `${pct.format(bin.realizedUpRate * 100)}%`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
             </>
           )}
         </section>
