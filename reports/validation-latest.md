@@ -136,11 +136,12 @@ O Kronos-small não entra nas seis células. A previsão dele é a variância da
 | SOLUSDT 24h: filtro de vol alta (ridge com futuros) em comprar e segurar | reprovada (provável sorte/overfit) | -0.46% | 0.60 | 0.652 | 0.771 | n/d | n/d |
 | SOLUSDT 24h: tamanho pela vol (vol recente) em comprar e segurar | reprovada (provável sorte/overfit) | 2.91% | 0.68 | 0.678 | 0.771 | n/d | n/d |
 | SOLUSDT 24h: tamanho pela vol (HAR-RV) em comprar e segurar | reprovada (provável sorte/overfit) | 1.18% | 0.63 | 0.664 | 0.771 | n/d | n/d |
-| Kronos-small: dispersão como vol | inconclusiva | n/d | n/d | n/d | n/d | n/d | n/d |
+| Kronos-small: filtro quando a dispersão está alta | reprovada (provável sorte/overfit) | -9.16% | -1.46 | 0.121 | 0.919 | n/d | n/d |
+| Kronos 6h: filtro da vol recente | reprovada (provável sorte/overfit) | -7.40% | -1.30 | 0.153 | 0.919 | n/d | n/d |
 
 ## Tamanho do movimento
 
-O modelo prevê o tamanho do movimento melhor que a vol recente. O HAR-RV teve QLIKE menor que a vol recente e Diebold-Mariano abaixo de 0,05 nas seis células. O filtro não reduz o risco sem custar retorno, ou não passa na régua. O filtro não passou. O drawdown ficou menor em 4 de 6 células. O excesso depois da taxa ficou positivo em 0 de 6. A régua inteira (excesso, Sharpe deflacionado e PBO) fechou em 0 de 6. Ficar parado não conta como aprovação. O Kronos-small fica inconclusivo até uma máquina com o worker e os pesos rodar `npm run validate -- --strategy kronos-vol`. Esta corrida não baixa peso e não inventa a dispersão.
+O modelo prevê o tamanho do movimento melhor que a vol recente. O HAR-RV teve QLIKE menor que a vol recente e Diebold-Mariano abaixo de 0,05 nas seis células. O filtro não reduz o risco sem custar retorno, ou não passa na régua. O filtro não passou. O drawdown ficou menor em 4 de 6 células. O excesso depois da taxa ficou positivo em 0 de 6. A régua inteira (excesso, Sharpe deflacionado e PBO) fechou em 0 de 6. Ficar parado não conta como aprovação. QLIKE da dispersão 0.9907 contra 1194.8419 da vol recente do bloco anterior. p de Diebold-Mariano 0.0442. MSE 0.00000013. Correlação de rank 0.198 (p=0.0020). Cobertura 80% 57.7%, 95% 73.5%. O alvo é o quadrado do log-retorno de 6 horas, que é o horizonte do modelo, não 4h nem 24h. Kronos-small: filtro quando a dispersão está alta: reprovada (provável sorte/overfit), excesso -9.16%. Kronos 6h: filtro da vol recente: reprovada (provável sorte/overfit), excesso -7.40%.
 
 ### Regra desta pergunta
 
@@ -244,7 +245,7 @@ O filtro primário fica zerado quando a previsão do HAR-RV passa do percentil 8
 | SOLUSDT 24h: tamanho pela vol (vol recente) em comprar e segurar | reprovada (provável sorte/overfit) | 2.91% | 0.68 | 0.678 | 0.771 | 29.57% | 36.16% |
 | SOLUSDT 24h: tamanho pela vol (HAR-RV) em comprar e segurar | reprovada (provável sorte/overfit) | 1.18% | 0.63 | 0.664 | 0.771 | 32.49% | 36.16% |
 
-Kronos-small: **inconclusiva.** O Kronos-small fica inconclusivo até uma máquina com o worker e os pesos rodar `npm run validate -- --strategy kronos-vol`. Esta corrida não baixa peso e não inventa a dispersão.
+Kronos-small: **aprovada.** QLIKE da dispersão 0.9907 contra 1194.8419 da vol recente do bloco anterior. p de Diebold-Mariano 0.0442. MSE 0.00000013. Correlação de rank 0.198 (p=0.0020). Cobertura 80% 57.7%, 95% 73.5%. O alvo é o quadrado do log-retorno de 6 horas, que é o horizonte do modelo, não 4h nem 24h. Kronos-small: filtro quando a dispersão está alta: reprovada (provável sorte/overfit), excesso -9.16%. Kronos 6h: filtro da vol recente: reprovada (provável sorte/overfit), excesso -7.40%.
 
 
 ## Por estratégia
@@ -1501,13 +1502,35 @@ O peso é a mediana da vol prevista no treino dividida pela vol prevista agora, 
 - Walk-forward: 3 blocos de teste. CPCV com purga e embargo: 15 divisões, mediana do Sharpe por período -0.0424.
 - Observações de retorno no teste: 251.
 
-### Kronos-small: dispersão como vol
+### Kronos-small: filtro quando a dispersão está alta
 
-**inconclusiva.** O Kronos-small fica inconclusivo até uma máquina com o worker e os pesos rodar `npm run validate -- --strategy kronos-vol`. Esta corrida não baixa peso e não inventa a dispersão.
+**reprovada (provável sorte/overfit).** A probabilidade de backtest overfitting ficou em 0,50 ou mais: a configuração que ganha num pedaço tende a perder no pedaço complementar.
 
-A previsão seria a variância dos log-retornos amostrados no caminho de 6 horas. O alvo é o quadrado do log-retorno nessas 6 horas. Sem o worker, esta linha não recebe número.
+Fica zerado quando a variância das amostras passa do percentil 80 das previsões já vistas, com pelo menos 30 previsões anteriores. O peso não usa o futuro. QLIKE da dispersão 0.9907 contra 1194.8419 da vol recente do bloco anterior. p de Diebold-Mariano 0.0442. MSE 0.00000013. Correlação de rank 0.198 (p=0.0020). Cobertura 80% 57.7%, 95% 73.5%. O alvo é o quadrado do log-retorno de 6 horas, que é o horizonte do modelo, não 4h nem 24h. Drawdown máximo no teste: 42.66%. Comprar e segurar no mesmo teste: 38.90%.
 
-Nenhum número novo foi calculado nesta corrida.
+- Retorno no teste: -24.39%. Comprar e segurar: -15.23%. Excesso: -9.16%. Excesso no treino do walk-forward: -12.61%.
+- Sharpe anualizado: -1.46. Sharpe por período: -0.0381. Sharpe deflacionado: 0.121 (referência 0.0015, 2 tentativas, dispersão: desvio-entre-tentativas).
+- PBO por CSCV: 0.919 em 12870 divisões.
+- Acerto direcional: n/d em 0 decisões, 0 sem sobreposição. p-valor n/d (binomial).
+- IC: n/d (p=n/d, n=0).
+- Brier: n/d. Brier da taxa-base: n/d.
+- Walk-forward: 3 blocos de teste. CPCV com purga e embargo: 15 divisões, mediana do Sharpe por período -0.0143.
+- Observações de retorno no teste: 845.
+
+### Kronos 6h: filtro da vol recente
+
+**reprovada (provável sorte/overfit).** A probabilidade de backtest overfitting ficou em 0,50 ou mais: a configuração que ganha num pedaço tende a perder no pedaço complementar.
+
+O mesmo filtro, com o quadrado do log-retorno do bloco anterior no lugar da dispersão. Serve de comparação e entra no PBO. Drawdown máximo no teste: 33.35%. Comprar e segurar no mesmo teste: 38.90%.
+
+- Retorno no teste: -22.63%. Comprar e segurar: -15.23%. Excesso: -7.40%. Excesso no treino do walk-forward: -19.13%.
+- Sharpe anualizado: -1.30. Sharpe por período: -0.0339. Sharpe deflacionado: 0.153 (referência 0.0015, 2 tentativas, dispersão: desvio-entre-tentativas).
+- PBO por CSCV: 0.919 em 12870 divisões.
+- Acerto direcional: n/d em 0 decisões, 0 sem sobreposição. p-valor n/d (binomial).
+- IC: n/d (p=n/d, n=0).
+- Brier: n/d. Brier da taxa-base: n/d.
+- Walk-forward: 3 blocos de teste. CPCV com purga e embargo: 15 divisões, mediana do Sharpe por período -0.0321.
+- Observações de retorno no teste: 845.
 
 ## Dados
 
@@ -1579,3 +1602,4 @@ Nenhum número novo foi calculado nesta corrida.
 - Volatilidade: o DSR de cada família conta os filtros registrados nela. A habilidade de previsão fica na família vol-habilidade e não entra nesse DSR, porque não é uma operação. As tentativas foram gravadas antes de ler o teste.
 - Volatilidade: no comprar e segurar, a taxa incide só quando a posição muda. Nas regras antigas, a ida e volta cheia do estudo de direção continua sempre que a posição fica ligada.
 - Volatilidade: a janela congelada é 2024-11-01T00:00:00.000Z a 2026-11-01T00:00:00.000Z. É a mesma do estudo de direção.
+- Volatilidade: Kronos-small QLIKE da dispersão 0.9907 contra 1194.8419 da vol recente do bloco anterior. p de Diebold-Mariano 0.0442. MSE 0.00000013. Correlação de rank 0.198 (p=0.0020). Cobertura 80% 57.7%, 95% 73.5%. O alvo é o quadrado do log-retorno de 6 horas, que é o horizonte do modelo, não 4h nem 24h. Kronos-small: filtro quando a dispersão está alta: reprovada (provável sorte/overfit), excesso -9.16%. Kronos 6h: filtro da vol recente: reprovada (provável sorte/overfit), excesso -7.40%.
