@@ -25,6 +25,8 @@ import {
 import { aranhaStrategies, crawlerStrategies } from './series';
 import { readTrials, trialCount, trialId, upsertTrial, TrialEntry } from './trials';
 import { runFuturesValidation } from '../futures/validate';
+import { runKronosVolValidation } from '../volatility/kronos-vol';
+import { runVolatilityValidation } from '../volatility/validate';
 
 loadEnvFile();
 
@@ -137,8 +139,21 @@ function strategyArgument(argv: readonly string[]): string | null {
 }
 
 async function main(): Promise<void> {
-  if (strategyArgument(process.argv) === 'futuros') {
+  const named = strategyArgument(process.argv);
+  if (named === 'futuros') {
     runFuturesValidation();
+    return;
+  }
+  if (named === 'vol') {
+    const report = runVolatilityValidation();
+    const block = report.volatility;
+    console.log(block ? `${block.skillVerdict} / ${block.filterVerdict}` : 'sem bloco de volatilidade');
+    console.log(block?.headline ?? '');
+    return;
+  }
+  if (named === 'kronos-vol') {
+    const report = await runKronosVolValidation();
+    console.log(report.volatility?.kronosReason ?? report.strategies.find(row => row.id === 'kronos-vol')?.reason ?? '');
     return;
   }
   const selected = parseStrategyFlag(process.argv);

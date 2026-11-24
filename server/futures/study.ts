@@ -24,7 +24,7 @@ export interface FuturesStudy {
   strategies: StrategySeries[];
 }
 
-function sideFor(rule: FuturesRuleId, probabilityUp: number, expectedReturn: number, fundingRate: number): -1 | 0 | 1 {
+export function futuresRuleSide(rule: FuturesRuleId, probabilityUp: number, expectedReturn: number, fundingRate: number): -1 | 0 | 1 {
   const cost = roundTripCost();
   if (rule === 'funding') {
     if (fundingRate > FUTURES_PROTOCOL.fundingShortAbove) return -1;
@@ -94,7 +94,7 @@ export function scoreDecisions(symbol: string, decisions: readonly FuturesDecisi
   const periodMs = FUTURES_PROTOCOL.horizonHours * 3_600_000;
   const family = futuresFamily(symbol);
   const strategies = FUTURES_RULES.map(rule => {
-    const returns = scored.map(row => sideFor(
+    const returns = scored.map(row => futuresRuleSide(
       rule.id,
       row.probabilityUp,
       row.expectedReturn,
@@ -108,7 +108,7 @@ export function scoreDecisions(symbol: string, decisions: readonly FuturesDecisi
       returns,
       benchmarkReturns: benchmark,
       decisions: scored.map((row, index) => {
-        const side = sideFor(rule.id, row.probabilityUp, row.expectedReturn, row.decision.features[3]);
+        const side = futuresRuleSide(rule.id, row.probabilityUp, row.expectedReturn, row.decision.features[3]);
         const predicted = rule.id === 'funding'
           ? side
           : row.expectedReturn;

@@ -141,6 +141,40 @@ export default function App() {
       climatologyBrier: number | null;
       informationCoefficient: number | null;
     } | null }[];
+    volatility?: {
+      headline: string;
+      skillVerdict: string;
+      skillReason: string;
+      filterVerdict: string;
+      filterReason: string;
+      kronosVerdict: string;
+      kronosReason: string;
+      cells: {
+        symbol: string;
+        horizonHours: number;
+        model: string;
+        observations: number;
+        qlike: number | null;
+        baselineQlike: number | null;
+        qlikeGap: number | null;
+        dmPValue: number | null;
+        rankVariance: number | null;
+        coverage80: number | null;
+        coverage95: number | null;
+        beatsBaseline: boolean;
+      }[];
+      filters: {
+        id: string;
+        name: string;
+        verdict: string;
+        excessReturnPct: number | null;
+        sharpe: number | null;
+        deflatedSharpeRatio: number | null;
+        probabilityOfBacktestOverfitting: number | null;
+        maxDrawdownPct: number | null;
+        buyAndHoldDrawdownPct: number | null;
+      }[];
+    };
   } | null>(null);
   const [validationError, setValidationError] = useState('');
   const [patchCompare, setPatchCompare] = useState<{
@@ -396,7 +430,7 @@ export default function App() {
                 <tr><th>Estratégia</th><th>Veredito</th><th>Excesso</th><th>Sharpe</th><th>DSR</th><th>PBO</th></tr>
               </thead>
               <tbody>
-                {validation.strategies.map(strategy => (
+                {validation.strategies.filter(strategy => !strategy.id.startsWith('vol-')).map(strategy => (
                   <tr key={strategy.id}>
                     <td>{strategy.name}</td>
                     <td className={strategy.verdict === 'aprovada' ? 'ok' : strategy.verdict.startsWith('reprovada') ? 'bad' : 'warn'}>{strategy.verdict}</td>
@@ -409,7 +443,7 @@ export default function App() {
               </tbody>
             </table>
           )}
-          {validation?.strategies?.map(strategy => (
+          {validation?.strategies?.filter(strategy => !strategy.id.startsWith('vol-')).map(strategy => (
             <p key={`${strategy.id}-reason`} className="muted">
               <strong>{strategy.name}.</strong> {strategy.reason}
               {strategy.metrics?.directionalAccuracy !== null && strategy.metrics?.directionalAccuracy !== undefined
@@ -420,9 +454,67 @@ export default function App() {
                 : ''}
             </p>
           ))}
-          {validation?.notes?.filter(note => note.toLowerCase().includes('futuro')).map(note => (
+          {validation?.notes?.filter(note => note.toLowerCase().includes('futuro') || note.startsWith('Volatilidade:')).map(note => (
             <p key={note} className="muted">{note}</p>
           ))}
+          {validation?.volatility && (
+            <>
+              <h2>Tamanho do movimento</h2>
+              <p>{validation.volatility.headline}</p>
+              <p className="muted">
+                Habilidade: <strong className={validation.volatility.skillVerdict === 'aprovada' ? 'ok' : validation.volatility.skillVerdict === 'reprovada' ? 'bad' : 'warn'}>{validation.volatility.skillVerdict}</strong>.
+                {' '}{validation.volatility.skillReason}
+              </p>
+              <p className="muted">
+                Filtro: <strong className={validation.volatility.filterVerdict === 'aprovada' ? 'ok' : validation.volatility.filterVerdict === 'reprovada' ? 'bad' : 'warn'}>{validation.volatility.filterVerdict}</strong>.
+                {' '}{validation.volatility.filterReason}
+              </p>
+              {validation.volatility.cells.length > 0 && (
+                <table>
+                  <thead>
+                    <tr><th>Moeda</th><th>Horas</th><th>Modelo</th><th>QLIKE</th><th>Baseline</th><th>p DM</th><th>Rank</th><th>80%</th><th>95%</th></tr>
+                  </thead>
+                  <tbody>
+                    {validation.volatility.cells.map(cell => (
+                      <tr key={`${cell.symbol}-${cell.horizonHours}-${cell.model}`}>
+                        <td>{cell.symbol}</td>
+                        <td>{cell.horizonHours}</td>
+                        <td>{cell.model}</td>
+                        <td>{cell.qlike === null ? '—' : cell.qlike.toFixed(3)}</td>
+                        <td>{cell.baselineQlike === null ? '—' : cell.baselineQlike.toFixed(3)}</td>
+                        <td>{cell.dmPValue === null ? '—' : cell.dmPValue < 0.0001 ? '<0,0001' : cell.dmPValue.toFixed(3)}</td>
+                        <td>{cell.rankVariance === null ? '—' : cell.rankVariance.toFixed(2)}</td>
+                        <td>{cell.coverage80 === null ? '—' : `${pct.format(cell.coverage80 * 100)}%`}</td>
+                        <td>{cell.coverage95 === null ? '—' : `${pct.format(cell.coverage95 * 100)}%`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {validation.volatility.filters.length > 0 && (
+                <table>
+                  <thead>
+                    <tr><th>Uso</th><th>Veredito</th><th>Excesso</th><th>Sharpe</th><th>DSR</th><th>PBO</th><th>Drawdown</th><th>Drawdown de segurar</th></tr>
+                  </thead>
+                  <tbody>
+                    {validation.volatility.filters.filter(row => row.id.includes('-filtro-har-') || row.id.includes('-dimensionar-har-')).map(row => (
+                      <tr key={row.id}>
+                        <td>{row.name}</td>
+                        <td className={row.verdict === 'aprovada' ? 'ok' : row.verdict.startsWith('reprovada') ? 'bad' : 'warn'}>{row.verdict}</td>
+                        <td>{row.excessReturnPct === null ? '—' : `${pct.format(row.excessReturnPct)}%`}</td>
+                        <td>{row.sharpe === null ? '—' : pct.format(row.sharpe)}</td>
+                        <td>{row.deflatedSharpeRatio === null ? '—' : pct.format(row.deflatedSharpeRatio)}</td>
+                        <td>{row.probabilityOfBacktestOverfitting === null ? '—' : pct.format(row.probabilityOfBacktestOverfitting)}</td>
+                        <td>{row.maxDrawdownPct === null ? '—' : `${pct.format(row.maxDrawdownPct)}%`}</td>
+                        <td>{row.buyAndHoldDrawdownPct === null ? '—' : `${pct.format(row.buyAndHoldDrawdownPct)}%`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <p className="muted">Kronos-small: {validation.volatility.kronosVerdict}. {validation.volatility.kronosReason}</p>
+            </>
+          )}
           <h2>Pesquisa de vantagem</h2>
           {researchError && <p>{researchError}</p>}
           {research && (

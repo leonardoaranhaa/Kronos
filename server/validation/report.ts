@@ -1,5 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { renderVolatilitySection, type VolatilityBlock } from '../volatility/headlines';
+import { VOL_FILTER_RULES, VOL_KRONOS_RULES, VOL_SKILL_RULES } from '../volatility/protocol';
 import { StrategyEvaluation } from './evaluate';
 import { decideVerdict, VERDICT_RULES, VerdictLabel } from './protocol';
 import { restateDeflatedSharpe } from './sharpe';
@@ -39,6 +41,8 @@ export interface ValidationReport {
   datasets: ValidationDataset[];
   strategies: ValidationStrategy[];
   notes: string[];
+  /** Present after `npm run validate -- --strategy vol`. Older reports simply omit it. */
+  volatility?: VolatilityBlock;
 }
 
 function num(value: number | null | undefined, digits = 2): string {
@@ -79,7 +83,16 @@ export function renderValidationMarkdown(report: ValidationReport): string {
     'npm run validate -- --strategy futuros',
     '```',
     '',
+    'O tamanho do movimento usa a mesma janela e os mesmos arquivos. O Kronos-small só entra na segunda linha, numa máquina com o worker e os pesos:',
     '',
+    '```bash',
+    'npm run validate -- --strategy vol',
+    'npm run validate -- --strategy kronos-vol',
+    '```',
+    '',
+    ...VOL_SKILL_RULES.flatMap(rule => [rule, '']),
+    ...VOL_FILTER_RULES.flatMap(rule => [rule, '']),
+    ...VOL_KRONOS_RULES.flatMap(rule => [rule, '']),
     '## Vereditos',
     '',
     '| Estratégia | Veredito | Excesso no teste | Sharpe | DSR | PBO | Acerto | IC |',
@@ -92,6 +105,7 @@ export function renderValidationMarkdown(report: ValidationReport): string {
       : `${(metrics.directionalAccuracy * 100).toFixed(2)}% (${metrics.directionalHits}/${metrics.directionalCompared})`;
     lines.push(`| ${strategy.name} | ${strategy.verdict} | ${pct(metrics?.excessReturnPct)} | ${num(metrics?.sharpe)} | ${num(metrics?.deflatedSharpeRatio, 3)} | ${num(metrics?.probabilityOfBacktestOverfitting, 3)} | ${accuracy} | ${num(metrics?.informationCoefficient, 3)} |`);
   }
+  if (report.volatility) lines.push('', ...renderVolatilitySection(report.volatility));
   lines.push('', '## Por estratégia', '');
   for (const strategy of report.strategies) {
     const metrics = strategy.metrics;
