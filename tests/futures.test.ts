@@ -249,6 +249,31 @@ test('logistic and ridge recover a separable line, and a test label does not mov
   assert.ok(first.strategies[0].returns.some(value => value !== 0));
 });
 
+test('collector reconnects a dropped websocket and stop cancels pending reconnects', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'futures-reconnect-'));
+  const sockets: Array<{ listeners: Map<string, (data?: unknown) => void>; close(): void }> = [];
+  const collector = new FuturesLiveCollector({
+    enabled: true, symbols: ['BTCUSDT'], restBase: 'https://fapi.binance.com',
+    wsBase: 'wss://fstream.binance.com/ws', refreshMs: 60_000, reconnectMs: 250, root
+  }, {
+    fetchImpl: async () => new Response('{}', { status: 404 }),
+    socketFactory: () => {
+      const listeners = new Map<string, (data?: unknown) => void>();
+      const socket = { listeners, close() { listeners.get('close')?.(); } };
+      sockets.push(socket);
+      return { on(event: string, listener: (data?: unknown) => void) { listeners.set(event, listener); }, close: socket.close } as never;
+    }
+  });
+  collector.start();
+  assert.equal(sockets.length, 1);
+  sockets[0].listeners.get('close')?.();
+  await new Promise(resolve => setTimeout(resolve, 300));
+  assert.equal(sockets.length, 2);
+  collector.stop();
+  await new Promise(resolve => setTimeout(resolve, 300));
+  assert.equal(sockets.length, 2);
+});
+
 test('public futures requests carry no credential', () => {
   const paths = publicFuturesPaths('BTCUSDT', 10);
   assert.ok(paths.length >= 8);
@@ -304,6 +329,8 @@ test('futures routes are GET and the legacy execution module stays out of the se
   const source = readFileSync(new URL('../server/index.ts', import.meta.url), 'utf8');
   assert.match(source, /app\.get\('\/api\/futures\/overlay'/);
   assert.match(source, /app\.get\('\/api\/futures\/status'/);
+  assert.match(source, /Number\\.isSafeInteger\\(startRaw\\)/);
+  assert.match(source, /maxRangeMs = 31/);
   assert.equal(source.includes("app.post('/api/futures"), false);
   assert.equal(source.includes('order_execution'), false);
   assert.match(source, /futuresLive\.start\(\)/);
