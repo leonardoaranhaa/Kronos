@@ -269,9 +269,12 @@ test('collector reconnects a dropped websocket and stop cancels pending reconnec
   sockets[0].listeners.get('close')?.();
   await new Promise(resolve => setTimeout(resolve, 300));
   assert.equal(sockets.length, 2);
+  sockets[1].listeners.get('error')?.();
+  await new Promise(resolve => setTimeout(resolve, 300));
+  assert.equal(sockets.length, 3);
   collector.stop();
   await new Promise(resolve => setTimeout(resolve, 300));
-  assert.equal(sockets.length, 2);
+  assert.equal(sockets.length, 3);
 });
 
 test('public futures requests carry no credential', () => {
