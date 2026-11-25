@@ -196,8 +196,10 @@ export class FuturesLiveCollector {
       });
       socket.on('error', () => {
         this.socketOpen = false;
+        if (this.socket === socket) this.socket = null;
         this.websocket = 'erro';
         this.noteError('websocket de futuros público sem conexão');
+        try { socket.close(); } catch { /* erro de transporte: a reconexão será agendada */ }
         this.scheduleReconnect();
       });
       socket.on('message', data => {
