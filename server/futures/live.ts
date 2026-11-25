@@ -12,6 +12,7 @@ export interface FuturesLiveConfig {
   restBase: string;
   wsBase: string;
   refreshMs: number;
+  reconnectMs?: number;
   root: string;
 }
 
@@ -87,6 +88,9 @@ export class FuturesLiveCollector {
   private readonly fetchImpl: typeof fetch;
   private readonly socketFactory: (url: string) => SocketLike;
   private timer: NodeJS.Timeout | null = null;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private reconnectAttempts = 0;
+  private stopping = false;
   private socket: SocketLike | null = null;
   private socketOpen = false;
   private running = false;
@@ -114,6 +118,7 @@ export class FuturesLiveCollector {
 
   start(): void {
     if (!this.config.enabled || this.timer) return;
+    this.stopping = false;
     this.startedAt = new Date().toISOString();
     this.openSocket();
     void this.cycle();
@@ -124,6 +129,9 @@ export class FuturesLiveCollector {
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.stopping = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
     this.flushFlows();
     this.socketOpen = false;
     this.socket?.close();
@@ -177,16 +185,20 @@ export class FuturesLiveCollector {
       this.websocket = 'conectando';
       socket.on('open', () => {
         this.socketOpen = true;
+        this.reconnectAttempts = 0;
         this.websocket = 'conectado';
       });
       socket.on('close', () => {
         this.socketOpen = false;
+        this.socket = null;
         this.websocket = 'fechado';
+        this.scheduleReconnect();
       });
       socket.on('error', () => {
         this.socketOpen = false;
         this.websocket = 'erro';
         this.noteError('websocket de futuros público sem conexão');
+        this.scheduleReconnect();
       });
       socket.on('message', data => {
         this.onSocketMessage(typeof data === 'string' ? data : String(data));
@@ -194,7 +206,20 @@ export class FuturesLiveCollector {
     } catch (error) {
       this.websocket = 'erro';
       this.noteError(error instanceof Error ? error.message : String(error));
+      this.scheduleReconnect();
     }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.stopping || !this.timer || this.reconnectTimer || !this.config.wsBase) return;
+    const baseDelay = Math.max(250, this.config.reconnectMs ?? 2_000);
+    const delay = Math.min(30_000, baseDelay * 2 ** Math.min(this.reconnectAttempts, 4));
+    this.reconnectAttempts += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (!this.stopping && this.timer && !this.socket) this.openSocket();
+    }, delay);
+    this.reconnectTimer.unref?.();
   }
 
   private onSocketMessage(raw: string): void {
