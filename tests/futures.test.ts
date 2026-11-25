@@ -329,8 +329,8 @@ test('futures routes are GET and the legacy execution module stays out of the se
   const source = readFileSync(new URL('../server/index.ts', import.meta.url), 'utf8');
   assert.match(source, /app\.get\('\/api\/futures\/overlay'/);
   assert.match(source, /app\.get\('\/api\/futures\/status'/);
-  assert.match(source, /Number\\.isSafeInteger\\(startRaw\\)/);
-  assert.match(source, /maxRangeMs = 31/);
+  assert.ok(source.includes('Number.isSafeInteger(startRaw)'));
+  assert.ok(source.includes('maxRangeMs = 31'));
   assert.equal(source.includes("app.post('/api/futures"), false);
   assert.equal(source.includes('order_execution'), false);
   assert.match(source, /futuresLive\.start\(\)/);
