@@ -120,10 +120,10 @@ export class FuturesLiveCollector {
     if (!this.config.enabled || this.timer) return;
     this.stopping = false;
     this.startedAt = new Date().toISOString();
-    this.openSocket();
-    void this.cycle();
     this.timer = setInterval(() => { void this.cycle(); }, this.config.refreshMs);
     this.timer.unref?.();
+    this.openSocket();
+    void this.cycle();
   }
 
   stop(): void {
