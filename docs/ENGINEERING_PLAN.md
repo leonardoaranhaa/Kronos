@@ -111,3 +111,17 @@ A correction is being prepared on the existing research-only PR #18 branch. This
 - Legacy order-submission source and its auto-running test entrypoint have been removed from this PR branch. No order tests are run.
 - The CI result from 2026-11-25 failed in the reconnect test (12 passed, 1 failed); the build and later checks were skipped. The correction remains unvalidated until GitHub Actions executes on the new commit.
 - Model inference, live historical import, independent OHLCV reproduction and deployment validation remain unverified. No milestone is marked operationally complete by this change.
+
+
+### Research evidence reconciliation — 2026-11-27
+
+The merged PR #17 contains two statements that must not be conflated:
+
+- Its PR narrative says Kronos-small was inconclusive on the author's machine because the upstream checkout and weights were absent at that point.
+- Commit [6bb3d62](https://github.com/leonardoaranhaa/Kronos/commit/6bb3d62d15489e562bf272ead6254d83271d967d) later records a local CPU run with 1,439 forecast outputs, 4 samples per forecast and a 6-hour horizon. The tracked trial row records 845 scored periods and Sharpe -0.0381 for the frozen kronos-vol filter. Forecast count and scored-period count are different quantities, not interchangeable.
+
+**Reconciliation status:** the commit and trial row establish that a run was recorded; they do not establish independent reproducibility. The current reports/validation-latest.md header says it was generated on 2026-11-14, while the volatility protocol and trial are dated 2026-11-21. Treat that report timestamp as stale until regenerated and checked against the underlying artifact.
+
+The trial row does not bind the run to a content hash for the exact OHLCV snapshot, model weights, tokenizer, forecast cache or worker environment. These are evidence gaps, not proof that the run was invalid.
+
+**Required before treating the model-volatility result as reproducible:** regenerate the report with a truthful generation timestamp; record dataset-manifest SHA-256, upstream model revision and model/tokenizer artifact hashes, worker/code revision, inference configuration and forecast-cache hash; retain a machine-readable run manifest. Do not rerun or promote any execution strategy as part of this evidence task.
