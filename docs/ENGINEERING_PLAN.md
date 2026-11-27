@@ -108,6 +108,6 @@ A milestone is complete only with committed code, tests, reproducible evidence a
 A correction is being prepared on the existing research-only PR #18 branch. This section is a work record, not a claim of validation.
 
 - WebSocket handlers will ignore late events from replaced sockets and deliberate shutdowns; the offline regression test covers reconnect, cancellation and stale-close behavior.
-- Legacy order-submission source and its auto-running test entrypoint are being removed from the research checkout. No order tests are run.
+- Legacy order-submission source and its auto-running test entrypoint have been removed from this PR branch. No order tests are run.
 - The CI result from 2026-11-25 failed in the reconnect test (12 passed, 1 failed); the build and later checks were skipped. The correction remains unvalidated until GitHub Actions executes on the new commit.
 - Model inference, live historical import, independent OHLCV reproduction and deployment validation remain unverified. No milestone is marked operationally complete by this change.
