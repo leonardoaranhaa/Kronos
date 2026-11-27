@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildDecisions, buildHourFrames, featureVector } from '../server/futures/align';
@@ -267,14 +267,22 @@ test('collector reconnects a dropped websocket and stop cancels pending reconnec
   collector.start();
   assert.equal(sockets.length, 1);
   sockets[0].listeners.get('close')?.();
-  await new Promise(resolve => setTimeout(resolve, 300));
+  await new Promise(resolve => setTimeout(resolve, 400));
   assert.equal(sockets.length, 2);
+  sockets[1].listeners.get('open')?.();
   sockets[1].listeners.get('error')?.();
-  await new Promise(resolve => setTimeout(resolve, 300));
+  await new Promise(resolve => setTimeout(resolve, 400));
   assert.equal(sockets.length, 3);
   collector.stop();
-  await new Promise(resolve => setTimeout(resolve, 300));
-  assert.equal(sockets.length, 3);
+
+  // Restart, then deliver a delayed close from an old socket. It must not
+  // clear the active socket or schedule an additional connection.
+  collector.start();
+  assert.equal(sockets.length, 4);
+  sockets[1].listeners.get('close')?.();
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(sockets.length, 4);
+  collector.stop();
 });
 
 test('public futures requests carry no credential', () => {
@@ -357,4 +365,10 @@ test('validation of an empty futures folder stays inconclusive and does not inve
   assert.ok(trials.every(line => JSON.parse(line).sharpe === null));
   assert.equal(listMonths(Date.parse('2024-11-01T00:00:00.000Z'), Date.parse('2026-11-01T00:00:00.000Z'))[0], '2024-11');
   assert.equal(listDays(Date.parse('2024-11-01T00:00:00.000Z'), Date.parse('2024-11-03T00:00:00.000Z')).join(','), '2024-11-01,2024-11-02');
+});
+
+
+test('research checkout contains no executable legacy order-submission module', () => {
+  assert.equal(existsSync(new URL('../server/order_execution.ts', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../server/test_binance_execution.ts', import.meta.url)), false);
 });
