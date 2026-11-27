@@ -184,19 +184,26 @@ export class FuturesLiveCollector {
       this.socket = socket;
       this.websocket = 'conectando';
       socket.on('open', () => {
+        if (this.socket !== socket || this.stopping) {
+          try { socket.close(); } catch { /* stale connection */ }
+          return;
+        }
         this.socketOpen = true;
         this.reconnectAttempts = 0;
         this.websocket = 'conectado';
       });
       socket.on('close', () => {
+        // Ignore late close events from a replaced socket or a deliberate shutdown.
+        if (this.socket !== socket || this.stopping) return;
         this.socketOpen = false;
         this.socket = null;
         this.websocket = 'fechado';
         this.scheduleReconnect();
       });
       socket.on('error', () => {
+        if (this.socket !== socket || this.stopping) return;
         this.socketOpen = false;
-        if (this.socket === socket) this.socket = null;
+        this.socket = null;
         this.websocket = 'erro';
         this.noteError('websocket de futuros público sem conexão');
         try { socket.close(); } catch { /* erro de transporte: a reconexão será agendada */ }
