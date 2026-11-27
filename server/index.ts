@@ -507,10 +507,16 @@ app.get('/api/research-m3', (_req, res) => {
 
 app.get('/api/futures/overlay', (req, res) => {
   const symbol = String(req.query.symbol || '').toUpperCase();
-  const startRaw = req.query.startTime === undefined ? null : Number(req.query.startTime);
-  const endRaw = req.query.endTime === undefined ? null : Number(req.query.endTime);
-  if (!/^[A-Z0-9]{5,20}$/.test(symbol) || (startRaw !== null && !Number.isFinite(startRaw)) || (endRaw !== null && !Number.isFinite(endRaw))) {
-    res.status(400).json({ error: 'Pedido inválido.', symbol, funding: [], openInterest: [], note: '' });
+  const startRaw = req.query.startTime === undefined ? NaN : Number(req.query.startTime);
+  const endRaw = req.query.endTime === undefined ? NaN : Number(req.query.endTime);
+  const rangeMs = endRaw - startRaw;
+  const maxRangeMs = 31 * 24 * 60 * 60 * 1000;
+  if (!/^[A-Z0-9]{5,20}$/.test(symbol) || !Number.isSafeInteger(startRaw) || !Number.isSafeInteger(endRaw) ||
+      startRaw < 0 || endRaw <= startRaw || rangeMs > maxRangeMs) {
+    res.status(400).json({
+      error: 'Informe symbol, startTime e endTime em milissegundos; a janela deve ser positiva e de até 31 dias.',
+      symbol, funding: [], openInterest: [], note: ''
+    });
     return;
   }
   res.json(overlayPayload(futuresRoot(), symbol, startRaw, endRaw));

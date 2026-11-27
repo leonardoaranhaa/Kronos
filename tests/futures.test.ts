@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildDecisions, buildHourFrames, featureVector } from '../server/futures/align';
@@ -249,6 +249,42 @@ test('logistic and ridge recover a separable line, and a test label does not mov
   assert.ok(first.strategies[0].returns.some(value => value !== 0));
 });
 
+test('collector reconnects a dropped websocket and stop cancels pending reconnects', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'futures-reconnect-'));
+  const sockets: Array<{ listeners: Map<string, (data?: unknown) => void>; close(): void }> = [];
+  const collector = new FuturesLiveCollector({
+    enabled: true, symbols: ['BTCUSDT'], restBase: 'https://fapi.binance.com',
+    wsBase: 'wss://fstream.binance.com/ws', refreshMs: 60_000, reconnectMs: 250, root
+  }, {
+    fetchImpl: async () => new Response('{}', { status: 404 }),
+    socketFactory: () => {
+      const listeners = new Map<string, (data?: unknown) => void>();
+      const socket = { listeners, close() { listeners.get('close')?.(); } };
+      sockets.push(socket);
+      return { on(event: string, listener: (data?: unknown) => void) { listeners.set(event, listener); }, close: socket.close } as never;
+    }
+  });
+  collector.start();
+  assert.equal(sockets.length, 1);
+  sockets[0].listeners.get('close')?.();
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(sockets.length, 2);
+  sockets[1].listeners.get('open')?.();
+  sockets[1].listeners.get('error')?.();
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(sockets.length, 3);
+  collector.stop();
+
+  // Restart, then deliver a delayed close from an old socket. It must not
+  // clear the active socket or schedule an additional connection.
+  collector.start();
+  assert.equal(sockets.length, 4);
+  sockets[1].listeners.get('close')?.();
+  await new Promise(resolve => setTimeout(resolve, 400));
+  assert.equal(sockets.length, 4);
+  collector.stop();
+});
+
 test('public futures requests carry no credential', () => {
   const paths = publicFuturesPaths('BTCUSDT', 10);
   assert.ok(paths.length >= 8);
@@ -304,6 +340,8 @@ test('futures routes are GET and the legacy execution module stays out of the se
   const source = readFileSync(new URL('../server/index.ts', import.meta.url), 'utf8');
   assert.match(source, /app\.get\('\/api\/futures\/overlay'/);
   assert.match(source, /app\.get\('\/api\/futures\/status'/);
+  assert.ok(source.includes('Number.isSafeInteger(startRaw)'));
+  assert.ok(source.includes('maxRangeMs = 31'));
   assert.equal(source.includes("app.post('/api/futures"), false);
   assert.equal(source.includes('order_execution'), false);
   assert.match(source, /futuresLive\.start\(\)/);
@@ -327,4 +365,10 @@ test('validation of an empty futures folder stays inconclusive and does not inve
   assert.ok(trials.every(line => JSON.parse(line).sharpe === null));
   assert.equal(listMonths(Date.parse('2024-11-01T00:00:00.000Z'), Date.parse('2026-11-01T00:00:00.000Z'))[0], '2024-11');
   assert.equal(listDays(Date.parse('2024-11-01T00:00:00.000Z'), Date.parse('2024-11-03T00:00:00.000Z')).join(','), '2024-11-01,2024-11-02');
+});
+
+
+test('research checkout contains no executable legacy order-submission module', () => {
+  assert.equal(existsSync(new URL('../server/order_execution.ts', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../server/test_binance_execution.ts', import.meta.url)), false);
 });
