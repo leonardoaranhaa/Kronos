@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { appendForecastCache, loadForecastCache } from '../forecast-cache';
 import type { FundingPrint, KlineBar } from '../futures/parse';
@@ -19,8 +21,9 @@ import {
 } from '../validation/report';
 import { readTrials, trialId, upsertTrial } from '../validation/trials';
 import { composeHeadline, fmt, type VolatilityBlock } from './headlines';
-import { coverageRate, dieboldMariano, empiricalQuantile, maxDrawdownPct, mse, qlike } from './losses';
-import { VOL_PROTOCOL, volKronosFamily, volTrialPlans } from './protocol';
+import { coverageRate, dieboldMariano, empiricalQuantile, maxDrawdownPct, qlike } from './losses';
+import { KRONOS_VOL_PROTOCOL, VOL_PROTOCOL, kronosVolFloor, kronosVolTrialPlans, volKronosFamily } from './protocol';
+import { fitHar, predictHar } from './models';
 import { exposureReturns, outerTestIndexes } from './study';
 import type { VolDecision } from './build';
 
@@ -43,17 +46,270 @@ export function sampleVarianceForecast(close: number, sampleEnds: readonly numbe
   for (const value of logs) square += (value - center) ** 2;
   const variance = square / (logs.length - 1);
   if (!(variance > 0) || !Number.isFinite(variance)) return null;
-  return Math.max(VOL_PROTOCOL.varianceFloor, variance);
+  return variance;
 }
 
-interface KronosObservation {
+function sha256File(path: string): string | null {
+  if (!existsSync(path)) return null;
+  return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+function hubRevision(repo: string): string | null {
+  const home = process.env.HF_HOME ?? join(homedir(), '.cache', 'huggingface');
+  const ref = join(home, 'hub', `models--${repo.replace('/', '--')}`, 'refs', 'main');
+  return existsSync(ref) ? readFileSync(ref, 'utf8').trim() : null;
+}
+
+function gitHead(directory: string): string | null {
+  try {
+    return execFileSync('git', ['-C', directory, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  } catch {
+    return null;
+  }
+}
+
+export interface KronosRunManifest {
+  protocol: string;
+  registeredAt: string;
+  generatedAt: string;
+  klinesFile: string;
+  klinesSha256: string;
+  cacheFile: string;
+  cacheSha256: string | null;
+  modelId: string;
+  modelRevision: string | null;
+  tokenizerId: string;
+  tokenizerRevision: string | null;
+  upstreamCommit: string | null;
+  patches: string[];
+  repoCommit: string | null;
+  inference: { context: number; horizon: number; stride: number; sampleCount: number; device: string };
+  forecasts: number;
+  points: number;
+  verdict: string;
+}
+
+/** Binds the published number to the exact inputs that produced it. */
+function writeRunManifest(directory: string, input: {
+  klinesFile: string;
+  cacheFile: string;
+  forecasts: number;
+  points: number;
+  verdict: string;
+  modulePath?: string;
+}): KronosRunManifest {
+  const modelId = process.env.KRONOS_MODEL_ID ?? 'NeoQuasar/Kronos-small';
+  const tokenizerId = process.env.KRONOS_TOKENIZER_ID ?? 'NeoQuasar/Kronos-Tokenizer-base';
+  const checkout = input.modulePath ? join(input.modulePath, '..', '..') : join('external', 'Kronos');
+  const patchDir = 'patches';
+  const manifest: KronosRunManifest = {
+    protocol: KRONOS_VOL_PROTOCOL.id,
+    registeredAt: KRONOS_VOL_PROTOCOL.registeredAt,
+    generatedAt: new Date().toISOString(),
+    klinesFile: input.klinesFile,
+    klinesSha256: sha256File(input.klinesFile) ?? 'n/d',
+    cacheFile: input.cacheFile,
+    cacheSha256: sha256File(input.cacheFile),
+    modelId,
+    modelRevision: hubRevision(modelId),
+    tokenizerId,
+    tokenizerRevision: hubRevision(tokenizerId),
+    upstreamCommit: gitHead(checkout),
+    patches: existsSync(patchDir)
+      ? readdirSync(patchDir).filter(name => name.endsWith('.patch')).sort().map(name => `${name} ${sha256File(join(patchDir, name))}`)
+      : [],
+    repoCommit: gitHead('.'),
+    inference: {
+      context: KRONOS_VOL_PROTOCOL.context,
+      horizon: KRONOS_VOL_PROTOCOL.horizonBars,
+      stride: KRONOS_VOL_PROTOCOL.stride,
+      sampleCount: KRONOS_VOL_PROTOCOL.sampleCount,
+      device: process.env.KRONOS_DEVICE ?? 'cpu'
+    },
+    forecasts: input.forecasts,
+    points: input.points,
+    verdict: input.verdict
+  };
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, 'kronos-vol-run.json'), JSON.stringify(manifest, null, 2) + '\n');
+  return manifest;
+}
+
+/** Where the frozen-window forecasts live. Shared with the combination study. */
+export function kronosCacheFile(klines: readonly KlineBar[], sampleCount: number = VOL_PROTOCOL.kronosSampleCount): { sha: string; path: string } {
+  const sha = datasetKey(klines);
+  const suffix = sampleCount === VOL_PROTOCOL.kronosSampleCount ? '' : `_s${sampleCount}`;
+  return { sha, path: join('data', 'research-cache', `BTCUSDT_1h_vol_kronos_${sha.slice(0, 12)}${suffix}.jsonl`) };
+}
+
+/** Decision bars of the frozen spec: every `stride` bars, with a contiguous block on each side. */
+export function kronosDecisionIndexes(klines: readonly KlineBar[]): number[] {
+  const horizon = VOL_PROTOCOL.kronosHorizonBars;
+  const indexes: number[] = [];
+  for (let index = VOL_PROTOCOL.kronosContext - 1; index + horizon < klines.length; index += VOL_PROTOCOL.kronosStride) {
+    if (klines[index].openTime - klines[index - horizon].openTime !== horizon * HOUR_MS) continue;
+    if (klines[index + horizon].openTime - klines[index].openTime !== horizon * HOUR_MS) continue;
+    indexes.push(index);
+  }
+  return indexes;
+}
+
+export interface KronosObservation {
   openTime: number;
   priceReturn: number;
   fundingPaidByLong: number;
+  /** Kronos sample variance of the 6-hour terminal log return, floored. */
   forecast: number;
+  /** Realized variance of the last 24 hours, scaled to 6 hours, floored. */
   naive: number;
+  /** HAR-RV on 6-hour blocks, fit on earlier decisions only. Null until 30 of them exist. */
+  har: number | null;
+  /** Realized variance of the next 6 hours. The v2 target. */
   realized: number;
+  /** Squared 6-hour log return. The v1 target, kept for the table. */
+  squaredReturn: number;
   absolute: number;
+  harDay: number;
+  harWeek: number;
+  harMonth: number;
+}
+
+function floorKronos(value: number): number {
+  return Math.max(kronosVolFloor(), value);
+}
+
+function squaredSum(returns: readonly number[], from: number, to: number): number | null {
+  if (from < 1) return null;
+  let sum = 0;
+  for (let index = from; index <= to; index++) {
+    const value = returns[index];
+    if (!Number.isFinite(value)) return null;
+    sum += value * value;
+  }
+  return sum;
+}
+
+/**
+ * One row per Kronos decision. Everything except the labels stops at the decision close.
+ * The HAR fit at row i uses rows j < i only; with stride 12 and horizon 6 their labels are closed.
+ */
+export function buildKronosObservations(
+  klines: readonly KlineBar[],
+  indexes: readonly number[],
+  cache: ReadonlyMap<number, Pick<CachedForecast, 'sampleEnds'>>,
+  funding: readonly FundingPrint[]
+): KronosObservation[] {
+  const horizon = KRONOS_VOL_PROTOCOL.horizonBars;
+  const returns = new Array<number>(klines.length).fill(Number.NaN);
+  for (let index = 1; index < klines.length; index++) {
+    const previous = klines[index - 1].close;
+    const current = klines[index].close;
+    if (previous > 0 && current > 0 && klines[index].openTime - klines[index - 1].openTime === HOUR_MS) {
+      returns[index] = Math.log(current / previous);
+    }
+  }
+  const rows: KronosObservation[] = [];
+  for (const index of indexes) {
+    const cached = cache.get(klines[index].openTime);
+    if (!cached) continue;
+    const raw = sampleVarianceForecast(klines[index].close, cached.sampleEnds);
+    const entry = klines[index].close;
+    const next = klines[index + horizon]?.close;
+    if (raw === null || !(entry > 0) || !(next > 0)) continue;
+    const realized = squaredSum(returns, index + 1, index + horizon);
+    const recent = squaredSum(returns, index - KRONOS_VOL_PROTOCOL.recentHours + 1, index);
+    const day = squaredSum(returns, index - horizon + 1, index);
+    const week = squaredSum(returns, index - KRONOS_VOL_PROTOCOL.harWeekBlocks * horizon + 1, index);
+    const month = squaredSum(returns, index - KRONOS_VOL_PROTOCOL.harMonthBlocks * horizon + 1, index);
+    if (realized === null || recent === null || day === null || week === null || month === null) continue;
+    const ahead = Math.log(next / entry);
+    rows.push({
+      openTime: klines[index].openTime,
+      priceReturn: next / entry - 1,
+      fundingPaidByLong: fundingBetween(funding, klines[index].closeTime, klines[index + horizon].closeTime),
+      forecast: floorKronos(raw),
+      naive: floorKronos(recent * horizon / KRONOS_VOL_PROTOCOL.recentHours),
+      har: null,
+      realized,
+      squaredReturn: ahead * ahead,
+      absolute: Math.abs(ahead),
+      harDay: day,
+      harWeek: week / KRONOS_VOL_PROTOCOL.harWeekBlocks,
+      harMonth: month / KRONOS_VOL_PROTOCOL.harMonthBlocks
+    });
+  }
+  for (let index = 0; index < rows.length; index++) {
+    if (index < KRONOS_VOL_PROTOCOL.minTrainForecasts) continue;
+    const train = rows.slice(0, index);
+    const model = fitHar(
+      train.map(row => row.harDay),
+      train.map(row => row.harWeek),
+      train.map(row => row.harMonth),
+      train.map(row => row.realized)
+    );
+    const value = model ? predictHar(model, rows[index].harDay, rows[index].harWeek, rows[index].harMonth) : null;
+    rows[index].har = value === null ? null : floorKronos(value);
+  }
+  return rows;
+}
+
+export interface KronosComparison {
+  qlikeModel: number | null;
+  qlikeBase: number | null;
+  pValue: number | null;
+  beats: boolean;
+}
+
+function compare(model: readonly number[], base: readonly number[], realized: readonly number[]): KronosComparison {
+  const modelLoss = model.map((value, index) => qlike(value, realized[index]) ?? Number.NaN);
+  const baseLoss = base.map((value, index) => qlike(value, realized[index]) ?? Number.NaN);
+  const dm = dieboldMariano(modelLoss, baseLoss, KRONOS_VOL_PROTOCOL.dmLag, KRONOS_VOL_PROTOCOL.dmHorizon);
+  const qlikeModel = mean(modelLoss);
+  const qlikeBase = mean(baseLoss);
+  const beats = qlikeModel !== null && qlikeBase !== null && qlikeModel < qlikeBase
+    && dm.pValue !== null && dm.pValue < KRONOS_VOL_PROTOCOL.dmAlpha;
+  return { qlikeModel, qlikeBase, pValue: dm.pValue, beats };
+}
+
+/** The v2 gate: beat the 24h realized vol and the HAR-RV on the same points. */
+export function judgeKronosVol(observations: readonly KronosObservation[]): {
+  verdict: VolatilityBlock['kronosVerdict'];
+  sentence: string;
+  points: number;
+  versusRecent: KronosComparison;
+  versusHar: KronosComparison;
+} {
+  const scored = observations.filter(row => row.har !== null);
+  const realized = scored.map(row => row.realized);
+  const forecasts = scored.map(row => row.forecast);
+  const versusRecent = compare(forecasts, scored.map(row => row.naive), realized);
+  const versusHar = compare(forecasts, scored.map(row => row.har as number), realized);
+  const enough = scored.length >= KRONOS_VOL_PROTOCOL.minTestObservations
+    && versusRecent.qlikeModel !== null && versusHar.qlikeBase !== null;
+  const verdict: VolatilityBlock['kronosVerdict'] = !enough
+    ? 'inconclusiva'
+    : versusRecent.beats && versusHar.beats ? 'aprovada' : 'reprovada';
+  if (!enough) {
+    return {
+      verdict,
+      sentence: `Protocolo ${KRONOS_VOL_PROTOCOL.id}: a dispersão do Kronos-small não fechou ${KRONOS_VOL_PROTOCOL.minTestObservations} pontos comparáveis com o HAR-RV (há ${scored.length}).`,
+      points: scored.length,
+      versusRecent,
+      versusHar
+    };
+  }
+  const rank = spearmanTest(forecasts, realized);
+  const cover80 = coverageRate(scored.map(row => row.absolute), forecasts, 0.8);
+  const cover95 = coverageRate(scored.map(row => row.absolute), forecasts, 0.95);
+  const v1 = mean(scored.map(row => qlike(row.forecast, row.squaredReturn) ?? Number.NaN));
+  const pct = (value: number | null) => value === null ? 'n/d' : `${fmt(value * 100, 1)}%`;
+  const sentence = [
+    `Protocolo ${KRONOS_VOL_PROTOCOL.id}, ${scored.length} pontos, alvo = variância realizada das 6 horas seguintes.`,
+    `QLIKE do Kronos ${fmt(versusRecent.qlikeModel, 4)}; vol realizada de 24h ${fmt(versusRecent.qlikeBase, 4)} (p DM ${fmt(versusRecent.pValue, 4)}); HAR-RV ${fmt(versusHar.qlikeBase, 4)} (p DM ${fmt(versusHar.pValue, 4)}).`,
+    `Correlação de rank ${fmt(rank.coefficient, 3)} (p=${fmt(rank.pValue, 4)}). Cobertura 80% ${pct(cover80)}, 95% ${pct(cover95)}.`,
+    `Contra o alvo antigo (quadrado do retorno de 6h) o QLIKE do Kronos é ${fmt(v1, 4)}; só informativo.`
+  ].join(' ');
+  return { verdict, sentence, points: scored.length, versusRecent, versusHar };
 }
 
 function fundingBetween(funding: readonly FundingPrint[], after: number, until: number): number {
@@ -128,12 +384,12 @@ function mean(values: readonly number[]): number | null {
 }
 
 function registerKronosTrials(trialLog: string): void {
-  for (const plan of volTrialPlans().filter(item => item.family === volKronosFamily())) {
+  for (const plan of kronosVolTrialPlans()) {
     upsertTrial(trialLog, {
       id: trialId(plan.family, plan.strategy, plan.params),
       family: plan.family,
       strategy: plan.strategy,
-      recordedAt: VOL_PROTOCOL.registeredAt,
+      recordedAt: KRONOS_VOL_PROTOCOL.registeredAt,
       trials: 1,
       sharpe: null,
       periods: null,
@@ -144,13 +400,13 @@ function registerKronosTrials(trialLog: string): void {
 }
 
 function remember(trialLog: string, strategy: string, sharpe: number | null, periods: number | null): void {
-  const plan = volTrialPlans().find(item => item.strategy === strategy);
+  const plan = kronosVolTrialPlans().find(item => item.strategy === strategy);
   if (!plan) return;
   upsertTrial(trialLog, {
     id: trialId(plan.family, plan.strategy, plan.params),
     family: plan.family,
     strategy: plan.strategy,
-    recordedAt: VOL_PROTOCOL.registeredAt,
+    recordedAt: KRONOS_VOL_PROTOCOL.registeredAt,
     trials: 1,
     sharpe,
     periods,
@@ -201,6 +457,8 @@ function patchReport(
   const kept = base.strategies.filter(row => row.id !== 'kronos-vol' && row.id !== 'kronos-vol-naive');
   const report: ValidationReport = {
     ...base,
+    // A patched report is a new report: the old timestamp would date this row wrongly.
+    generatedAt: new Date().toISOString(),
     trialLog,
     strategies: [...kept, ...rows],
     notes: base.notes.some(note => note.startsWith('Volatilidade: Kronos-small'))
@@ -249,18 +507,12 @@ export async function runKronosVolValidation(options: {
     return patchReport(directory, trialLog, [inconclusiveRow(reason)], 'inconclusiva', reason);
   }
   const candles = klines.map(toCandle);
-  const sha = datasetKey(klines);
-  const cacheFile = join('data', 'research-cache', `BTCUSDT_1h_vol_kronos_${sha.slice(0, 12)}.jsonl`);
+  const { sha, path: cacheFile } = kronosCacheFile(klines);
   const cache = loadForecastCache(cacheFile, sha);
   const horizon = VOL_PROTOCOL.kronosHorizonBars;
   const context = VOL_PROTOCOL.kronosContext;
   const stride = VOL_PROTOCOL.kronosStride;
-  const indexes: number[] = [];
-  for (let index = context - 1; index + horizon < klines.length; index += stride) {
-    if (klines[index].openTime - klines[index - horizon].openTime !== horizon * HOUR_MS) continue;
-    if (klines[index + horizon].openTime - klines[index].openTime !== horizon * HOUR_MS) continue;
-    indexes.push(index);
-  }
+  const indexes = kronosDecisionIndexes(klines);
   const kronos = new KronosProcess();
   try {
     await kronos.start();
@@ -291,47 +543,18 @@ export async function runKronosVolValidation(options: {
     kronos.stop();
   }
 
-  const observations: KronosObservation[] = [];
-  for (const index of indexes) {
-    const cached = cache.get(klines[index].openTime);
-    if (!cached) continue;
-    const forecast = sampleVarianceForecast(klines[index].close, cached.sampleEnds);
-    const previous = klines[index - horizon].close;
-    const next = klines[index + horizon].close;
-    const entry = klines[index].close;
-    if (forecast === null || !(previous > 0) || !(next > 0) || !(entry > 0)) continue;
-    const past = Math.log(entry / previous);
-    const ahead = Math.log(next / entry);
-    observations.push({
-      openTime: klines[index].openTime,
-      priceReturn: next / entry - 1,
-      fundingPaidByLong: fundingBetween(funding, klines[index].closeTime, klines[index + horizon].closeTime),
-      forecast,
-      naive: Math.max(VOL_PROTOCOL.varianceFloor, past * past),
-      realized: ahead * ahead,
-      absolute: Math.abs(ahead)
-    });
-  }
-  const modelLoss = observations.map(row => qlike(row.forecast, row.realized)).filter((value): value is number => value !== null);
-  const baseLoss = observations.map(row => qlike(row.naive, row.realized)).filter((value): value is number => value !== null);
-  const dm = dieboldMariano(
-    observations.map(row => qlike(row.forecast, row.realized) ?? Number.NaN),
-    observations.map(row => qlike(row.naive, row.realized) ?? Number.NaN),
-    VOL_PROTOCOL.dmLag,
-    VOL_PROTOCOL.dmHorizon
-  );
-  const qlikeModel = mean(modelLoss);
-  const qlikeBase = mean(baseLoss);
-  const mseModel = mean(observations.map(row => mse(row.forecast, row.realized) ?? Number.NaN));
-  const rank = spearmanTest(observations.map(row => row.forecast), observations.map(row => row.realized));
-  const cover80 = coverageRate(observations.map(row => row.absolute), observations.map(row => row.forecast), 0.8);
-  const cover95 = coverageRate(observations.map(row => row.absolute), observations.map(row => row.forecast), 0.95);
-  const enough = observations.length >= VOL_PROTOCOL.minTestObservations && qlikeModel !== null && qlikeBase !== null;
-  const beats = enough && (qlikeModel as number) < (qlikeBase as number) && dm.pValue !== null && dm.pValue < VOL_PROTOCOL.dmAlpha;
-  const skillVerdict: VolatilityBlock['kronosVerdict'] = !enough ? 'inconclusiva' : beats ? 'aprovada' : 'reprovada';
-  const skillSentence = !enough
-    ? `A dispersão do Kronos-small não fechou 30 pontos comparáveis (há ${observations.length}).`
-    : `QLIKE da dispersão ${fmt(qlikeModel, 4)} contra ${fmt(qlikeBase, 4)} da vol recente do bloco anterior. p de Diebold-Mariano ${fmt(dm.pValue, 4)}. MSE ${fmt(mseModel, 8)}. Correlação de rank ${fmt(rank.coefficient, 3)} (p=${fmt(rank.pValue, 4)}). Cobertura 80% ${cover80 === null ? 'n/d' : fmt(cover80 * 100, 1) + '%'}, 95% ${cover95 === null ? 'n/d' : fmt(cover95 * 100, 1) + '%'}. O alvo é o quadrado do log-retorno de ${horizon} horas, que é o horizonte do modelo, não 4h nem 24h.`;
+  const observations = buildKronosObservations(klines, indexes, cache, funding);
+  const judged = judgeKronosVol(observations);
+  const skillVerdict = judged.verdict;
+  const manifest = writeRunManifest(directory, {
+    klinesFile: join(symbolDir(root, 'BTCUSDT'), 'klines-1h.jsonl'),
+    cacheFile,
+    forecasts: indexes.filter(index => cache.has(klines[index].openTime)).length,
+    points: judged.points,
+    verdict: skillVerdict,
+    modulePath: options.modulePath
+  });
+  const skillSentence = `${judged.sentence} Proveniência em reports/kronos-vol-run.json (candles ${manifest.klinesSha256.slice(0, 12)}, cache ${manifest.cacheSha256?.slice(0, 12) ?? 'n/d'}, pesos ${manifest.modelRevision?.slice(0, 12) ?? 'n/d'}).`;
 
   if (funding.length === 0 || observations.length < VOL_PROTOCOL.minTestObservations) {
     const reason = `${skillSentence} O filtro não foi cobrado: ${funding.length === 0 ? 'falta o funding.' : 'amostra curta.'}`;
@@ -373,8 +596,8 @@ export async function runKronosVolValidation(options: {
     ),
     makeSeries(
       'kronos-vol-naive',
-      'Kronos 6h: filtro da vol recente',
-      'O mesmo filtro, com o quadrado do log-retorno do bloco anterior no lugar da dispersão. Serve de comparação e entra no PBO.',
+      'Kronos 6h: filtro da vol realizada de 24h',
+      'O mesmo filtro, com a vol realizada das últimas 24 horas no lugar da dispersão. Serve de comparação e entra no PBO.',
       usedNaive.map(high => high ? 0 : 1)
     )
   ];

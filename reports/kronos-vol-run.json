@@ -1,0 +1,28 @@
+{
+  "protocol": "kronos-vol-v2",
+  "registeredAt": "2026-11-28T01:38:06.000Z",
+  "generatedAt": "2026-11-28T01:55:54.045Z",
+  "klinesFile": "data/futures/BTCUSDT/klines-1h.jsonl",
+  "klinesSha256": "c32d91c8daf3f39dcc7e3eaa57bac2a92244ad6a9dd6139c78639f929a8b795e",
+  "cacheFile": "data/research-cache/BTCUSDT_1h_vol_kronos_4bcf9934b7cf.jsonl",
+  "cacheSha256": "5232bee7db5ee136ee7b75138f89c688c8b5c08b88856b8c073df1f9eb8c6e63",
+  "modelId": "NeoQuasar/Kronos-small",
+  "modelRevision": "901c26c1332695a2a8f243eb2f37243a37bea320",
+  "tokenizerId": "NeoQuasar/Kronos-Tokenizer-base",
+  "tokenizerRevision": "0e0117387f39004a9016484a186a908917e22426",
+  "upstreamCommit": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+  "patches": [
+    "kronos-rope-425.patch b24d194134c9d98ea55601b257ad7e64c3a58fac892989782159e60799c019c2"
+  ],
+  "repoCommit": "5bda9e1584d79c74f2cb7dae284de7286d4e4f1a",
+  "inference": {
+    "context": 256,
+    "horizon": 6,
+    "stride": 12,
+    "sampleCount": 4,
+    "device": "cpu"
+  },
+  "forecasts": 1439,
+  "points": 1409,
+  "verdict": "reprovada"
+}

@@ -18,6 +18,8 @@ import torch
 UPSTREAM_COMMIT = os.getenv("KRONOS_UPSTREAM_COMMIT", "67b630e67f6a18c9e9be918d9b4337c960db1e9a")
 MODEL_ID = os.getenv("KRONOS_MODEL_ID", "NeoQuasar/Kronos-small")
 TOKENIZER_ID = os.getenv("KRONOS_TOKENIZER_ID", "NeoQuasar/Kronos-Tokenizer-base")
+# Research can ask for more paths to measure dispersion; the live default cap stays 8.
+MAX_SAMPLES = max(1, int(os.getenv("KRONOS_MAX_SAMPLES", "8")))
 FREQ_MAP = {
     "1s": "1s", "1m": "1min", "3m": "3min", "5m": "5min",
     "15m": "15min", "30m": "30min", "1h": "1h", "2h": "2h",
@@ -115,7 +117,7 @@ class KronosWorker:
         self.sample_count = 1
 
     def predict(self, candles, interval, horizon, timestamp, sample_count=1):
-        self.sample_count = max(1, min(8, int(sample_count)))
+        self.sample_count = max(1, min(MAX_SAMPLES, int(sample_count)))
         if interval not in FREQ_MAP:
             raise ValueError(f"Unsupported interval for official Kronos adapter: {interval}")
         if len(candles) < 32:

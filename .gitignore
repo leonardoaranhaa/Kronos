@@ -34,3 +34,6 @@ env/
 .vscode/
 .idea/
 *.log
+
+# Fine-tuned weights stay local; the manifest is copied into reports/ when a run is published.
+models/
