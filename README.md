@@ -101,6 +101,10 @@ O importador lê `data.binance.vision`. Os arquivos vão para `data/futures`, ou
 
 Cada tentativa medida grava o seu Sharpe por período em `reports/trial-log.jsonl`. O Sharpe deflacionado usa o desvio-padrão desses Sharpes. A grade de 108 combinações do M2 entra na contagem, mas o arquivo antigo não guardou o Sharpe de cada combinação, então ela não entra na dispersão. O erro-padrão do Sharpe só substitui essa dispersão quando há menos de dois Sharpes gravados.
 
+## Vol targeting (forward congelado)
+
+`npm run vol-target` lê a carteira de vol targeting com HAR-RV em BTC, ETH e SOL: comprado, com o peso reduzido quando a volatilidade prevista passa da mediana do treino. A janela 2024-11 a 2026-11 sai como retrospectiva e não decide, porque já tinha sido vista. A decisão é o forward, que começou em 29/11/2026, tem leitura interina aos 90 dias e veredito aos 365. `npm run vol-target:import` baixa os candles diários e o funding mensal publicados depois da janela congelada. O relatório fica em `reports/vol-target-latest.md`. A regra e o critério estão em `server/volatility/targeting.ts` e em `docs/PLANO.md`.
+
 ## Regras do sinal
 
 Tudo é calculado só com candles já fechados.

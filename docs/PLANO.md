@@ -130,3 +130,43 @@ Fica uma pergunta legítima em aberto: 4 amostras são poucas para medir dispers
 
 - Item 4: PR #18 (futuros) está verde e é coerente com este plano; falta a revisão e o merge do dono.
 - Item 5: `npm run check` verde nesta branch (testes, build, sintaxe do worker e do script de instalação).
+
+## 8. Fases 3 e 4 — 28 de novembro de 2026
+
+### Achado antes do código
+
+O "tamanho pela vol (HAR-RV) em comprar e segurar" da vol-v1 já é o vol targeting da Fase 3: peso = mín(1, mediana das previsões do treino ÷ previsão de agora). Ele já tinha sido pontuado na janela 2024-11 a 2026-11, e os números foram vistos no levantamento, antes do critério novo. Julgar esse mesmo dado com o critério novo seria trocar a régua depois do resultado. Por isso a Fase 3 virou leitura retrospectiva, e a decisão passou inteira para o forward.
+
+### Fase 3 — retrospectivo (não decide)
+
+`npm run vol-target`, relatório em `reports/vol-target-latest.md`. Protocolo `vol-target-v1`, em `server/volatility/targeting.ts`.
+
+| Célula | Sharpe | Sharpe segurar | Drawdown | Drawdown segurar | DSR | PBO |
+| --- | --- | --- | --- | --- | --- | --- |
+| BTC 4h | 0,07 | 0,69 | 27,4% | 29,3% | 0,250 | 0,056 |
+| BTC 24h | 0,42 | 0,60 | 26,5% | 28,5% | 0,522 | 0,117 |
+| ETH 4h | 0,44 | 0,63 | 35,2% | 38,0% | 0,410 | 0,171 |
+| ETH 24h | 0,60 | 0,57 | 34,5% | 35,5% | 0,617 | 0,812 |
+| SOL 4h | 0,71 | 0,78 | 31,8% | 37,6% | 0,629 | 0,124 |
+| SOL 24h | 0,63 | 0,60 | 32,5% | 36,2% | 0,664 | 0,771 |
+
+**Reprovado nas seis células.** O drawdown cai em todas, mas em 4 delas o Sharpe não passa o de comprar e segurar, e o DSR fica abaixo de 0,95 em todas (nas duas de 24h com Sharpe maior, ETH e SOL, o PBO também passa de 0,5). Os Sharpes recalculados aqui, com os dados baixados de novo, batem com os publicados pela vol-v1: o estudo anterior se reproduz.
+
+### Fase 4 — forward congelado
+
+- Mesma carteira, HAR reajustado a cada bloco só com blocos cujo rótulo já fechou (`expandingHarWeights`).
+- Começa em 29/11/2026 00:00 UTC, depois do commit que congelou a regra.
+- Leitura interina aos 90 dias (publicada, não decide). **Veredito aos 365 dias.** Mudança em relação à seção 4: 90 dias de retornos de 4h não separam do ruído uma diferença de Sharpe de alguns décimos. O ponto de 365 dias foi fixado antes de existir qualquer dado forward.
+- Só arquivos públicos (`data.binance.vision`): candles diários e funding mensal. Um bloco só conta quando o funding do mês dele já foi publicado. Qualquer pessoa reconstrói o resultado; não depende de um gravador ao vivo nem do servidor do Fly.
+- O DSR usa 6 tentativas (uma por célula); o PBO não entra, porque a carteira foi escolhida antes dos dados.
+- Comandos: `npm run vol-target:import` e depois `npm run vol-target`.
+
+### Expectativa honesta
+
+O retrospectivo não dá motivo para otimismo: a regra perdeu para comprar e segurar no Sharpe em 4 de 6 células. O forward existe para que a resposta final venha de dado que ninguém viu, não porque se espera aprovação. Se reprovar, o critério de parada da seção 6 encerra a busca de vantagem com este conjunto de dados.
+
+### Próximos marcos
+
+- Início de dezembro: funding de novembro publicado; o forward passa a ter blocos.
+- 27/02/2027: leitura interina.
+- 29/11/2027: veredito.

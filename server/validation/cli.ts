@@ -26,6 +26,9 @@ import { aranhaStrategies, crawlerStrategies } from './series';
 import { readTrials, trialCount, trialId, upsertTrial, TrialEntry } from './trials';
 import { runFuturesValidation } from '../futures/validate';
 import { runKronosVolValidation } from '../volatility/kronos-vol';
+import { runVolTarget } from '../volatility/targeting';
+import { importForward } from '../volatility/forward-import';
+import { futuresRoot as volTargetRoot } from '../futures/paths';
 import { runVolatilityValidation } from '../volatility/validate';
 
 loadEnvFile();
@@ -149,6 +152,18 @@ async function main(): Promise<void> {
     const block = report.volatility;
     console.log(block ? `${block.skillVerdict} / ${block.filterVerdict}` : 'sem bloco de volatilidade');
     console.log(block?.headline ?? '');
+    return;
+  }
+  if (named === 'vol-target-import') {
+    const rows = await importForward({ root: volTargetRoot(), onProgress: message => console.log(`[forward] ${message}`) });
+    for (const row of rows) console.log(`${row.symbol}: candles até ${row.lastKline ?? 'n/d'}, funding até ${row.lastFunding ?? 'n/d'}`);
+    return;
+  }
+  if (named === 'vol-target') {
+    const result = runVolTarget({ root: volTargetRoot(), report: readValidationReport() });
+    console.log(`retrospectivo (não decide): ${result.retrospective.verdict}`);
+    console.log(`forward: ${result.forward.verdict}`);
+    for (const cell of result.retrospective.cells) console.log(`  ${cell.symbol} ${cell.horizonHours}h: ${cell.verdict}. ${cell.reason}`);
     return;
   }
   if (named === 'kronos-vol') {
