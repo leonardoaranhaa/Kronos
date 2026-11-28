@@ -28,7 +28,7 @@ import { runFuturesValidation } from '../futures/validate';
 import { runKronosVolValidation } from '../volatility/kronos-vol';
 import { runVolTarget } from '../volatility/targeting';
 import { importForward } from '../volatility/forward-import';
-import { runKronosCombo } from '../volatility/kronos-combo';
+import { runKronosCombo, runKronosS32, writeS32Job } from '../volatility/kronos-combo';
 import { futuresRoot as volTargetRoot } from '../futures/paths';
 import { runVolatilityValidation } from '../volatility/validate';
 
@@ -153,6 +153,17 @@ async function main(): Promise<void> {
     const block = report.volatility;
     console.log(block ? `${block.skillVerdict} / ${block.filterVerdict}` : 'sem bloco de volatilidade');
     console.log(block?.headline ?? '');
+    return;
+  }
+  if (named === 'kronos-s32-job') {
+    console.log(writeS32Job());
+    return;
+  }
+  if (named === 'kronos-s32') {
+    const result = runKronosS32();
+    console.log(`previsões no cache: ${result.forecasts}/${result.expected}`);
+    console.log(`kronos-vol-s32: ${result.skill.verdict}. ${result.skill.sentence}`);
+    console.log(`kronos-combo-s32: ${result.combo.verdict}. ${result.combo.sentence}`);
     return;
   }
   if (named === 'kronos-combo') {

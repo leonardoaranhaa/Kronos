@@ -1,10 +1,11 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadForecastCache } from '../forecast-cache';
 import type { FundingPrint, KlineBar } from '../futures/parse';
 import { futuresRoot, symbolDir } from '../futures/paths';
 import { readJsonl } from '../futures/store';
 import { readTrials, trialId, upsertTrial } from '../validation/trials';
-import { buildKronosObservations, kronosCacheFile, kronosDecisionIndexes, type KronosObservation } from './kronos-vol';
+import { buildKronosObservations, judgeKronosVol, kronosCacheFile, kronosDecisionIndexes, type KronosObservation } from './kronos-vol';
 import { dieboldMariano, qlike } from './losses';
 import { fitRidgeVol, predictRidgeVol } from './models';
 import { KRONOS_VOL_PROTOCOL, VOL_PROTOCOL, kronosVolFloor, volKronosFamily } from './protocol';
@@ -139,4 +140,89 @@ export function runKronosCombo(options: { root?: string; trialLog?: string } = {
   const result = scoreKronosCombo(rows);
   registerComboTrial(trialLog, null, result.points, true);
   return result;
+}
+
+/**
+ * The 4-path variance has ~80% relative error; it may hide a real signal. This re-runs both
+ * Kronos gates, unchanged, on 32 paths per decision (same seed rule, T and top_p, same points).
+ * Frozen before the 32-path cache existed. Two trials in vol-kronos: kronos-vol-s32, kronos-combo-s32.
+ */
+export const KRONOS_S32_PROTOCOL = Object.freeze({
+  id: 'kronos-s32-v1',
+  registeredAt: '2026-11-28T09:45:00.000Z',
+  sampleCount: 32,
+  gates: [KRONOS_VOL_PROTOCOL.id, KRONOS_COMBO_PROTOCOL.id]
+});
+
+function s32Params(strategy: string): Record<string, unknown> {
+  return {
+    protocol: KRONOS_S32_PROTOCOL.id,
+    registeredAt: KRONOS_S32_PROTOCOL.registeredAt,
+    sampleCount: KRONOS_S32_PROTOCOL.sampleCount,
+    gate: strategy === 'kronos-vol-s32' ? KRONOS_VOL_PROTOCOL.id : KRONOS_COMBO_PROTOCOL.id,
+    symbol: 'BTCUSDT',
+    horizon: KRONOS_VOL_PROTOCOL.horizonBars
+  };
+}
+
+export function registerS32Trials(trialLog: string, points: number | null = null, measured = false): void {
+  for (const strategy of ['kronos-vol-s32', 'kronos-combo-s32']) {
+    const params = s32Params(strategy);
+    upsertTrial(trialLog, {
+      id: trialId(volKronosFamily(), strategy, params),
+      family: volKronosFamily(),
+      strategy,
+      recordedAt: KRONOS_S32_PROTOCOL.registeredAt,
+      trials: 1,
+      sharpe: null,
+      periods: points,
+      source: measured ? 'habilidade medida depois do pre-registro, sem Sharpe de operação' : 'pre-registro antes do teste',
+      params
+    });
+  }
+}
+
+function frozenKlines(root: string): KlineBar[] {
+  return readJsonl<KlineBar>(join(symbolDir(root, 'BTCUSDT'), 'klines-1h.jsonl'))
+    .filter(bar => bar.openTime >= Date.parse(VOL_PROTOCOL.windowStart) && bar.openTime < Date.parse(VOL_PROTOCOL.windowEnd))
+    .sort((a, b) => a.openTime - b.openTime);
+}
+
+/** Job file for scripts/kronos-dispersion-cache.py. */
+export function writeS32Job(options: { root?: string; file?: string } = {}): string {
+  const root = options.root ?? futuresRoot();
+  const klines = frozenKlines(root);
+  const cache = kronosCacheFile(klines, KRONOS_S32_PROTOCOL.sampleCount);
+  const file = options.file ?? join('data', 'research-cache', 'kronos-s32-job.json');
+  mkdirSync(join('data', 'research-cache'), { recursive: true });
+  writeFileSync(file, JSON.stringify({
+    klinesFile: join(symbolDir(root, 'BTCUSDT'), 'klines-1h.jsonl'),
+    windowStartMs: Date.parse(VOL_PROTOCOL.windowStart),
+    windowEndMs: Date.parse(VOL_PROTOCOL.windowEnd),
+    openTimes: kronosDecisionIndexes(klines).map(index => klines[index].openTime),
+    context: VOL_PROTOCOL.kronosContext,
+    horizon: VOL_PROTOCOL.kronosHorizonBars,
+    sampleCount: KRONOS_S32_PROTOCOL.sampleCount,
+    datasetSha256: cache.sha,
+    cacheFile: cache.path
+  }));
+  return file;
+}
+
+export function runKronosS32(options: { root?: string; trialLog?: string } = {}): { skill: ReturnType<typeof judgeKronosVol>; combo: ComboResult; forecasts: number; expected: number } {
+  const trialLog = options.trialLog ?? 'reports/trial-log.jsonl';
+  registerS32Trials(trialLog);
+  const root = options.root ?? futuresRoot();
+  const klines = frozenKlines(root);
+  const funding = readJsonl<FundingPrint>(join(symbolDir(root, 'BTCUSDT'), 'funding.jsonl'));
+  const file = kronosCacheFile(klines, KRONOS_S32_PROTOCOL.sampleCount);
+  const cache = loadForecastCache(file.path, file.sha);
+  const indexes = kronosDecisionIndexes(klines);
+  const forecasts = indexes.filter(index => cache.has(klines[index].openTime)).length;
+  const rows = buildKronosObservations(klines, indexes, cache, funding);
+  const skill = judgeKronosVol(rows);
+  const combo = scoreKronosCombo(rows);
+  // A partial cache is not a measurement: only a full one is recorded as measured.
+  if (forecasts === indexes.length) registerS32Trials(trialLog, rows.length, true);
+  return { skill, combo, forecasts, expected: indexes.length };
 }

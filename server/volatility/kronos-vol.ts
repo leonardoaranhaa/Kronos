@@ -136,9 +136,10 @@ function writeRunManifest(directory: string, input: {
 }
 
 /** Where the frozen-window forecasts live. Shared with the combination study. */
-export function kronosCacheFile(klines: readonly KlineBar[]): { sha: string; path: string } {
+export function kronosCacheFile(klines: readonly KlineBar[], sampleCount: number = VOL_PROTOCOL.kronosSampleCount): { sha: string; path: string } {
   const sha = datasetKey(klines);
-  return { sha, path: join('data', 'research-cache', `BTCUSDT_1h_vol_kronos_${sha.slice(0, 12)}.jsonl`) };
+  const suffix = sampleCount === VOL_PROTOCOL.kronosSampleCount ? '' : `_s${sampleCount}`;
+  return { sha, path: join('data', 'research-cache', `BTCUSDT_1h_vol_kronos_${sha.slice(0, 12)}${suffix}.jsonl`) };
 }
 
 /** Decision bars of the frozen spec: every `stride` bars, with a contiguous block on each side. */
