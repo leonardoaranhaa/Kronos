@@ -387,3 +387,29 @@ test('vol validation does not touch the legacy execution module', () => {
   const screen = readFileSync(new URL('../src/client/App.tsx', import.meta.url), 'utf8');
   assert.match(screen, /Tamanho do movimento/);
 });
+
+test('the Kronos combination passes only when the Kronos column carries information the HAR lacks', async () => {
+  const { scoreKronosCombo } = await import('../server/volatility/kronos-combo');
+  const make = (informative: boolean) => {
+    const random = mulberry32(17);
+    const rows: KronosObservation[] = [];
+    let level = 1e-4;
+    for (let index = 0; index < 600; index++) {
+      level = Math.exp(0.95 * Math.log(level) + 0.05 * Math.log(1e-4) + 0.1 * (random() - 0.5));
+      const surprise = Math.exp(1.5 * (random() - 0.5));
+      const truth = level * surprise;
+      const realized = truth * -Math.log(Math.max(1e-9, random()));
+      rows.push({
+        openTime: index, priceReturn: 0, fundingPaidByLong: 0,
+        // The informative Kronos sees the surprise the HAR regressors cannot.
+        forecast: informative ? truth : level * Math.exp(1.5 * (random() - 0.5)),
+        naive: level, har: level, realized, squaredReturn: realized, absolute: Math.sqrt(realized),
+        harDay: level * Math.exp(0.2 * (random() - 0.5)), harWeek: level, harMonth: level
+      });
+    }
+    return rows;
+  };
+  assert.equal(scoreKronosCombo(make(true)).verdict, 'aprovada');
+  assert.equal(scoreKronosCombo(make(false)).verdict, 'reprovada');
+  assert.equal(scoreKronosCombo(make(true).slice(0, 100)).verdict, 'inconclusiva');
+});

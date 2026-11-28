@@ -28,6 +28,7 @@ import { runFuturesValidation } from '../futures/validate';
 import { runKronosVolValidation } from '../volatility/kronos-vol';
 import { runVolTarget } from '../volatility/targeting';
 import { importForward } from '../volatility/forward-import';
+import { runKronosCombo } from '../volatility/kronos-combo';
 import { futuresRoot as volTargetRoot } from '../futures/paths';
 import { runVolatilityValidation } from '../volatility/validate';
 
@@ -152,6 +153,11 @@ async function main(): Promise<void> {
     const block = report.volatility;
     console.log(block ? `${block.skillVerdict} / ${block.filterVerdict}` : 'sem bloco de volatilidade');
     console.log(block?.headline ?? '');
+    return;
+  }
+  if (named === 'kronos-combo') {
+    const result = runKronosCombo();
+    console.log(`${result.verdict}. ${result.sentence}`);
     return;
   }
   if (named === 'vol-target-import') {

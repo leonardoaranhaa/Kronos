@@ -135,6 +135,24 @@ function writeRunManifest(directory: string, input: {
   return manifest;
 }
 
+/** Where the frozen-window forecasts live. Shared with the combination study. */
+export function kronosCacheFile(klines: readonly KlineBar[]): { sha: string; path: string } {
+  const sha = datasetKey(klines);
+  return { sha, path: join('data', 'research-cache', `BTCUSDT_1h_vol_kronos_${sha.slice(0, 12)}.jsonl`) };
+}
+
+/** Decision bars of the frozen spec: every `stride` bars, with a contiguous block on each side. */
+export function kronosDecisionIndexes(klines: readonly KlineBar[]): number[] {
+  const horizon = VOL_PROTOCOL.kronosHorizonBars;
+  const indexes: number[] = [];
+  for (let index = VOL_PROTOCOL.kronosContext - 1; index + horizon < klines.length; index += VOL_PROTOCOL.kronosStride) {
+    if (klines[index].openTime - klines[index - horizon].openTime !== horizon * HOUR_MS) continue;
+    if (klines[index + horizon].openTime - klines[index].openTime !== horizon * HOUR_MS) continue;
+    indexes.push(index);
+  }
+  return indexes;
+}
+
 export interface KronosObservation {
   openTime: number;
   priceReturn: number;
@@ -488,18 +506,12 @@ export async function runKronosVolValidation(options: {
     return patchReport(directory, trialLog, [inconclusiveRow(reason)], 'inconclusiva', reason);
   }
   const candles = klines.map(toCandle);
-  const sha = datasetKey(klines);
-  const cacheFile = join('data', 'research-cache', `BTCUSDT_1h_vol_kronos_${sha.slice(0, 12)}.jsonl`);
+  const { sha, path: cacheFile } = kronosCacheFile(klines);
   const cache = loadForecastCache(cacheFile, sha);
   const horizon = VOL_PROTOCOL.kronosHorizonBars;
   const context = VOL_PROTOCOL.kronosContext;
   const stride = VOL_PROTOCOL.kronosStride;
-  const indexes: number[] = [];
-  for (let index = context - 1; index + horizon < klines.length; index += stride) {
-    if (klines[index].openTime - klines[index - horizon].openTime !== horizon * HOUR_MS) continue;
-    if (klines[index + horizon].openTime - klines[index].openTime !== horizon * HOUR_MS) continue;
-    indexes.push(index);
-  }
+  const indexes = kronosDecisionIndexes(klines);
   const kronos = new KronosProcess();
   try {
     await kronos.start();
