@@ -60,7 +60,7 @@ export const VOL_PROTOCOL = Object.freeze({
 });
 
 /**
- * Kronos-small dispersion cell, second version. Frozen on 2026-11-28 before it was scored.
+ * Kronos-small dispersion cell, second version. Frozen in commit 5bda9e1 (2026-11-28 01:38 UTC), before the comparison was scored.
  *
  * Why a v2: in v1 the "vol recente" baseline was the square of ONE 6-hour log return,
  * floored at 1e-12. A flat block made that forecast ~1e-12 and the QLIKE term
@@ -79,7 +79,7 @@ export const VOL_PROTOCOL = Object.freeze({
  * on the same points, with at least 30 of them.
  */
 export const KRONOS_VOL_PROTOCOL = Object.freeze({
-  registeredAt: '2026-11-28T12:00:00.000Z',
+  registeredAt: '2026-11-28T01:38:06.000Z',
   id: 'kronos-vol-v2',
   horizonBars: VOL_PROTOCOL.kronosHorizonBars,
   context: VOL_PROTOCOL.kronosContext,

@@ -101,6 +101,32 @@ Só se a fase 1 mostrar habilidade de distribuição. O upstream tem rotina de f
 - Fase 2 falha → Kronos fora da trilha de risco.
 - Fase 4 reprova → publicar, manter a plataforma como ferramenta de pesquisa e leitura, e encerrar a busca de vantagem com este conjunto de dados.
 
-## 7. Próximo passo imediato
+## 7. Estado — 28 de novembro de 2026
 
-Fase 0, item 1: corrigir o baseline em `server/volatility/kronos-vol.ts`, com teste de regressão.
+### Fase 0, itens 1 a 3: feitos
+
+- Correção registrada como protocolo `kronos-vol-v2` (commit 5bda9e1, antes da conta). As tentativas da v1 seguem no registro.
+- Testes novos: bloco parado não explode o QLIKE; o HAR do Kronos não vê o futuro; o portão exige vencer as duas referências.
+- Relatório com data nova e manifesto de proveniência em `reports/kronos-vol-run.json` (hash dos candles, do cache, dos pesos, do upstream e do patch).
+- Medido nesta máquina, CPU, 1.439 previsões, 1.409 pontos comparáveis:
+
+| Previsão | QLIKE médio (menor é melhor) |
+| --- | --- |
+| HAR-RV de blocos de 6h | −8,289 |
+| Vol realizada de 24h | −8,255 |
+| Kronos-small, dispersão de 4 amostras | +1,281 |
+
+**Kronos reprovado** (p de Diebold-Mariano = 1,00 contra as duas). O "aprovado" anterior era o defeito.
+
+Diagnóstico, fora do registro de tentativas: a dispersão do Kronos ordena a vol (correlação de rank 0,32), mas é pequena demais (mediana 0,4× o realizado) e instável (razão de 0,05× a 2,1× entre os percentis 10 e 90). Mesmo com a melhor escala escolhida olhando o resultado (×12,6), o QLIKE fica em −7,44, ainda pior que o HAR-RV.
+
+### O que isso muda
+
+O critério de parada da Fase 0 disparou: o Kronos-vol perde para a vol recente corrigida. Pelo plano, a trilha de risco segue só com o HAR-RV (Fase 3).
+
+Fica uma pergunta legítima em aberto: 4 amostras são poucas para medir dispersão (seção 2.2). Uma única rodada com 32 amostras custa cerca de 8× o tempo (≈ 30 h nesta máquina de 4 CPUs, menos com GPU). Ela só vale se for registrada antes, com o mesmo portão, e contada como tentativa.
+
+### Pendente na Fase 0
+
+- Item 4: PR #18 (futuros) está verde e é coerente com este plano; falta a revisão e o merge do dono.
+- Item 5: `npm run check` verde nesta branch (testes, build, sintaxe do worker e do script de instalação).

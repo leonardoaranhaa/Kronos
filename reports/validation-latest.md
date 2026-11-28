@@ -2,7 +2,7 @@
 
 Simulação de pesquisa. Nenhuma ordem real foi enviada. Um número ruim continua publicado. Isto não é conselho de investimento.
 
-Gerado em 2026-11-14T14:31:24.027Z. O registro de tentativas está em `reports/trial-log.jsonl`.
+Gerado em 2026-11-28T01:55:55.067Z. O registro de tentativas está em `reports/trial-log.jsonl`.
 
 ## Regra do veredito
 
@@ -50,9 +50,11 @@ npm run validate -- --strategy kronos-vol
 
 **Inconclusiva** quando não há série, não há funding para cobrar o custo, ou o teste não fecha 30 retornos. Ficar parado o tempo todo não é aprovação.
 
-O Kronos-small não entra nas seis células. A previsão dele é a variância das amostras do caminho de 6 horas já congelado no protocolo de pesquisa, comparada com o quadrado do log-retorno nessas 6 horas.
+O Kronos-small não entra nas seis células. A previsão dele é a variância das amostras do caminho de 6 horas já congelado no protocolo de pesquisa. Na versão 2 (`kronos-vol-v2`, registrada em 28/11/2026, antes da conta) o alvo é a variância realizada das 6 horas seguintes, a soma dos quadrados dos retornos de 1 hora.
 
-**Aprovada** nessa célula só com QLIKE melhor que a vol recente e p-valor de Diebold-Mariano abaixo de 0,05, em pelo menos 30 pontos. Sem o worker e sem os pesos o veredito fica inconclusivo. O comando é `npm run validate -- --strategy kronos-vol`.
+A versão 1 comparava o Kronos com o quadrado de um único retorno de 6 horas, com piso de 1e-12. Um bloco parado levava essa previsão a quase zero e o QLIKE dela a 1e8. O "aprovado" da versão 1 era um defeito da comparação, não habilidade. As tentativas da versão 1 continuam no registro e continuam contando.
+
+**Aprovada** nessa célula só quando o Kronos vence as duas referências nos mesmos pontos: a vol realizada das últimas 24 horas, escalada para 6, e um HAR-RV de blocos de 6 horas ajustado só com decisões anteriores. QLIKE menor e p-valor unilateral de Diebold-Mariano abaixo de 0,05 contra cada uma, em pelo menos 30 pontos. Todas as previsões têm o mesmo piso, 1e-8 por hora. Sem o worker e sem os pesos o veredito fica inconclusivo. O comando é `npm run validate -- --strategy kronos-vol`.
 
 ## Vereditos
 
@@ -136,12 +138,12 @@ O Kronos-small não entra nas seis células. A previsão dele é a variância da
 | SOLUSDT 24h: filtro de vol alta (ridge com futuros) em comprar e segurar | reprovada (provável sorte/overfit) | -0.46% | 0.60 | 0.652 | 0.771 | n/d | n/d |
 | SOLUSDT 24h: tamanho pela vol (vol recente) em comprar e segurar | reprovada (provável sorte/overfit) | 2.91% | 0.68 | 0.678 | 0.771 | n/d | n/d |
 | SOLUSDT 24h: tamanho pela vol (HAR-RV) em comprar e segurar | reprovada (provável sorte/overfit) | 1.18% | 0.63 | 0.664 | 0.771 | n/d | n/d |
-| Kronos-small: filtro quando a dispersão está alta | reprovada (provável sorte/overfit) | -9.16% | -1.46 | 0.121 | 0.919 | n/d | n/d |
-| Kronos 6h: filtro da vol recente | reprovada (provável sorte/overfit) | -7.40% | -1.30 | 0.153 | 0.919 | n/d | n/d |
+| Kronos-small: filtro quando a dispersão está alta | reprovada (provável sorte/overfit) | -9.16% | -1.46 | 0.113 | 0.577 | n/d | n/d |
+| Kronos 6h: filtro da vol realizada de 24h | reprovada (provável sorte/overfit) | -8.91% | -1.49 | 0.110 | 0.577 | n/d | n/d |
 
 ## Tamanho do movimento
 
-O modelo prevê o tamanho do movimento melhor que a vol recente. O HAR-RV teve QLIKE menor que a vol recente e Diebold-Mariano abaixo de 0,05 nas seis células. O filtro não reduz o risco sem custar retorno, ou não passa na régua. O filtro não passou. O drawdown ficou menor em 4 de 6 células. O excesso depois da taxa ficou positivo em 0 de 6. A régua inteira (excesso, Sharpe deflacionado e PBO) fechou em 0 de 6. Ficar parado não conta como aprovação. QLIKE da dispersão 0.9907 contra 1194.8419 da vol recente do bloco anterior. p de Diebold-Mariano 0.0442. MSE 0.00000013. Correlação de rank 0.198 (p=0.0020). Cobertura 80% 57.7%, 95% 73.5%. O alvo é o quadrado do log-retorno de 6 horas, que é o horizonte do modelo, não 4h nem 24h. Kronos-small: filtro quando a dispersão está alta: reprovada (provável sorte/overfit), excesso -9.16%. Kronos 6h: filtro da vol recente: reprovada (provável sorte/overfit), excesso -7.40%.
+O modelo prevê o tamanho do movimento melhor que a vol recente. O HAR-RV teve QLIKE menor que a vol recente e Diebold-Mariano abaixo de 0,05 nas seis células. O filtro não reduz o risco sem custar retorno, ou não passa na régua. O filtro não passou. O drawdown ficou menor em 4 de 6 células. O excesso depois da taxa ficou positivo em 0 de 6. A régua inteira (excesso, Sharpe deflacionado e PBO) fechou em 0 de 6. Ficar parado não conta como aprovação. Protocolo kronos-vol-v2, 1409 pontos, alvo = variância realizada das 6 horas seguintes. QLIKE do Kronos 1.2813; vol realizada de 24h -8.2548 (p DM 1.0000); HAR-RV -8.2887 (p DM 1.0000). Correlação de rank 0.322 (p=0.0020). Cobertura 80% 57.5%, 95% 73.2%. Contra o alvo antigo (quadrado do retorno de 6h) o QLIKE do Kronos é 1.1468; só informativo. Proveniência em reports/kronos-vol-run.json (candles c32d91c8daf3, cache 5232bee7db5e, pesos 901c26c13326). Kronos-small: filtro quando a dispersão está alta: reprovada (provável sorte/overfit), excesso -9.16%. Kronos 6h: filtro da vol realizada de 24h: reprovada (provável sorte/overfit), excesso -8.91%.
 
 ### Regra desta pergunta
 
@@ -245,7 +247,7 @@ O filtro primário fica zerado quando a previsão do HAR-RV passa do percentil 8
 | SOLUSDT 24h: tamanho pela vol (vol recente) em comprar e segurar | reprovada (provável sorte/overfit) | 2.91% | 0.68 | 0.678 | 0.771 | 29.57% | 36.16% |
 | SOLUSDT 24h: tamanho pela vol (HAR-RV) em comprar e segurar | reprovada (provável sorte/overfit) | 1.18% | 0.63 | 0.664 | 0.771 | 32.49% | 36.16% |
 
-Kronos-small: **aprovada.** QLIKE da dispersão 0.9907 contra 1194.8419 da vol recente do bloco anterior. p de Diebold-Mariano 0.0442. MSE 0.00000013. Correlação de rank 0.198 (p=0.0020). Cobertura 80% 57.7%, 95% 73.5%. O alvo é o quadrado do log-retorno de 6 horas, que é o horizonte do modelo, não 4h nem 24h. Kronos-small: filtro quando a dispersão está alta: reprovada (provável sorte/overfit), excesso -9.16%. Kronos 6h: filtro da vol recente: reprovada (provável sorte/overfit), excesso -7.40%.
+Kronos-small: **reprovada.** Protocolo kronos-vol-v2, 1409 pontos, alvo = variância realizada das 6 horas seguintes. QLIKE do Kronos 1.2813; vol realizada de 24h -8.2548 (p DM 1.0000); HAR-RV -8.2887 (p DM 1.0000). Correlação de rank 0.322 (p=0.0020). Cobertura 80% 57.5%, 95% 73.2%. Contra o alvo antigo (quadrado do retorno de 6h) o QLIKE do Kronos é 1.1468; só informativo. Proveniência em reports/kronos-vol-run.json (candles c32d91c8daf3, cache 5232bee7db5e, pesos 901c26c13326). Kronos-small: filtro quando a dispersão está alta: reprovada (provável sorte/overfit), excesso -9.16%. Kronos 6h: filtro da vol realizada de 24h: reprovada (provável sorte/overfit), excesso -8.91%.
 
 
 ## Por estratégia
@@ -1506,30 +1508,30 @@ O peso é a mediana da vol prevista no treino dividida pela vol prevista agora, 
 
 **reprovada (provável sorte/overfit).** A probabilidade de backtest overfitting ficou em 0,50 ou mais: a configuração que ganha num pedaço tende a perder no pedaço complementar.
 
-Fica zerado quando a variância das amostras passa do percentil 80 das previsões já vistas, com pelo menos 30 previsões anteriores. O peso não usa o futuro. QLIKE da dispersão 0.9907 contra 1194.8419 da vol recente do bloco anterior. p de Diebold-Mariano 0.0442. MSE 0.00000013. Correlação de rank 0.198 (p=0.0020). Cobertura 80% 57.7%, 95% 73.5%. O alvo é o quadrado do log-retorno de 6 horas, que é o horizonte do modelo, não 4h nem 24h. Drawdown máximo no teste: 42.66%. Comprar e segurar no mesmo teste: 38.90%.
+Fica zerado quando a variância das amostras passa do percentil 80 das previsões já vistas, com pelo menos 30 previsões anteriores. O peso não usa o futuro. Protocolo kronos-vol-v2, 1409 pontos, alvo = variância realizada das 6 horas seguintes. QLIKE do Kronos 1.2813; vol realizada de 24h -8.2548 (p DM 1.0000); HAR-RV -8.2887 (p DM 1.0000). Correlação de rank 0.322 (p=0.0020). Cobertura 80% 57.5%, 95% 73.2%. Contra o alvo antigo (quadrado do retorno de 6h) o QLIKE do Kronos é 1.1468; só informativo. Proveniência em reports/kronos-vol-run.json (candles c32d91c8daf3, cache 5232bee7db5e, pesos 901c26c13326). Drawdown máximo no teste: 42.66%. Comprar e segurar no mesmo teste: 38.90%.
 
 - Retorno no teste: -24.39%. Comprar e segurar: -15.23%. Excesso: -9.16%. Excesso no treino do walk-forward: -12.61%.
-- Sharpe anualizado: -1.46. Sharpe por período: -0.0381. Sharpe deflacionado: 0.121 (referência 0.0015, 2 tentativas, dispersão: desvio-entre-tentativas).
-- PBO por CSCV: 0.919 em 12870 divisões.
+- Sharpe anualizado: -1.46. Sharpe por período: -0.0381. Sharpe deflacionado: 0.113 (referência 0.0029, 4 tentativas, dispersão: desvio-entre-tentativas).
+- PBO por CSCV: 0.577 em 12870 divisões.
 - Acerto direcional: n/d em 0 decisões, 0 sem sobreposição. p-valor n/d (binomial).
 - IC: n/d (p=n/d, n=0).
 - Brier: n/d. Brier da taxa-base: n/d.
 - Walk-forward: 3 blocos de teste. CPCV com purga e embargo: 15 divisões, mediana do Sharpe por período -0.0143.
 - Observações de retorno no teste: 845.
 
-### Kronos 6h: filtro da vol recente
+### Kronos 6h: filtro da vol realizada de 24h
 
 **reprovada (provável sorte/overfit).** A probabilidade de backtest overfitting ficou em 0,50 ou mais: a configuração que ganha num pedaço tende a perder no pedaço complementar.
 
-O mesmo filtro, com o quadrado do log-retorno do bloco anterior no lugar da dispersão. Serve de comparação e entra no PBO. Drawdown máximo no teste: 33.35%. Comprar e segurar no mesmo teste: 38.90%.
+O mesmo filtro, com a vol realizada das últimas 24 horas no lugar da dispersão. Serve de comparação e entra no PBO. Drawdown máximo no teste: 33.52%. Comprar e segurar no mesmo teste: 38.90%.
 
-- Retorno no teste: -22.63%. Comprar e segurar: -15.23%. Excesso: -7.40%. Excesso no treino do walk-forward: -19.13%.
-- Sharpe anualizado: -1.30. Sharpe por período: -0.0339. Sharpe deflacionado: 0.153 (referência 0.0015, 2 tentativas, dispersão: desvio-entre-tentativas).
-- PBO por CSCV: 0.919 em 12870 divisões.
+- Retorno no teste: -24.14%. Comprar e segurar: -15.23%. Excesso: -8.91%. Excesso no treino do walk-forward: -27.98%.
+- Sharpe anualizado: -1.49. Sharpe por período: -0.0391. Sharpe deflacionado: 0.110 (referência 0.0029, 4 tentativas, dispersão: desvio-entre-tentativas).
+- PBO por CSCV: 0.577 em 12870 divisões.
 - Acerto direcional: n/d em 0 decisões, 0 sem sobreposição. p-valor n/d (binomial).
 - IC: n/d (p=n/d, n=0).
 - Brier: n/d. Brier da taxa-base: n/d.
-- Walk-forward: 3 blocos de teste. CPCV com purga e embargo: 15 divisões, mediana do Sharpe por período -0.0321.
+- Walk-forward: 3 blocos de teste. CPCV com purga e embargo: 15 divisões, mediana do Sharpe por período -0.0181.
 - Observações de retorno no teste: 845.
 
 ## Dados
@@ -1602,4 +1604,4 @@ O mesmo filtro, com o quadrado do log-retorno do bloco anterior no lugar da disp
 - Volatilidade: o DSR de cada família conta os filtros registrados nela. A habilidade de previsão fica na família vol-habilidade e não entra nesse DSR, porque não é uma operação. As tentativas foram gravadas antes de ler o teste.
 - Volatilidade: no comprar e segurar, a taxa incide só quando a posição muda. Nas regras antigas, a ida e volta cheia do estudo de direção continua sempre que a posição fica ligada.
 - Volatilidade: a janela congelada é 2024-11-01T00:00:00.000Z a 2026-11-01T00:00:00.000Z. É a mesma do estudo de direção.
-- Volatilidade: Kronos-small QLIKE da dispersão 0.9907 contra 1194.8419 da vol recente do bloco anterior. p de Diebold-Mariano 0.0442. MSE 0.00000013. Correlação de rank 0.198 (p=0.0020). Cobertura 80% 57.7%, 95% 73.5%. O alvo é o quadrado do log-retorno de 6 horas, que é o horizonte do modelo, não 4h nem 24h. Kronos-small: filtro quando a dispersão está alta: reprovada (provável sorte/overfit), excesso -9.16%. Kronos 6h: filtro da vol recente: reprovada (provável sorte/overfit), excesso -7.40%.
+- Volatilidade: Kronos-small Protocolo kronos-vol-v2, 1409 pontos, alvo = variância realizada das 6 horas seguintes. QLIKE do Kronos 1.2813; vol realizada de 24h -8.2548 (p DM 1.0000); HAR-RV -8.2887 (p DM 1.0000). Correlação de rank 0.322 (p=0.0020). Cobertura 80% 57.5%, 95% 73.2%. Contra o alvo antigo (quadrado do retorno de 6h) o QLIKE do Kronos é 1.1468; só informativo. Proveniência em reports/kronos-vol-run.json (candles c32d91c8daf3, cache 5232bee7db5e, pesos 901c26c13326). Kronos-small: filtro quando a dispersão está alta: reprovada (provável sorte/overfit), excesso -9.16%. Kronos 6h: filtro da vol realizada de 24h: reprovada (provável sorte/overfit), excesso -8.91%.
