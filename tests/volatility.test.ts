@@ -13,9 +13,15 @@ import type { KlineBar } from '../server/futures/parse';
 import { buildVolDecisions, buildVolSample } from '../server/volatility/build';
 import { judgeFilter, judgeSkill } from '../server/volatility/headlines';
 import { coverageRate, dieboldMariano, maxDrawdownPct, qlike } from '../server/volatility/losses';
-import { sampleVarianceForecast, runKronosVolValidation } from '../server/volatility/kronos-vol';
+import {
+  buildKronosObservations,
+  judgeKronosVol,
+  sampleVarianceForecast,
+  runKronosVolValidation,
+  type KronosObservation
+} from '../server/volatility/kronos-vol';
 import { fitGarch11, fitHar, garchHorizonForecast, predictHar } from '../server/volatility/models';
-import { VOL_PROTOCOL, volTrialPlans } from '../server/volatility/protocol';
+import { KRONOS_VOL_PROTOCOL, VOL_PROTOCOL, kronosVolFloor, volTrialPlans } from '../server/volatility/protocol';
 import { skillCell } from '../server/volatility/skill';
 import { exposureReturns, scoreVolPoints } from '../server/volatility/study';
 import { runVolatilityValidation } from '../server/volatility/validate';
@@ -66,7 +72,95 @@ test('the vol protocol stays on the futures window and the existing gates', () =
   assert.equal(VOL_PROTOCOL.kronosStride, hour?.stride);
   assert.equal(VOL_PROTOCOL.kronosSampleCount, SAMPLE_COUNT);
   assert.equal(volTrialPlans().some(plan => plan.strategy === 'kronos-vol'), true);
-  assert.equal(volTrialPlans().every(plan => plan.params && (plan.params as { registeredAt: string }).registeredAt === VOL_PROTOCOL.registeredAt), true);
+  const registered = (plan: { params: Record<string, unknown> }) => (plan.params as { registeredAt: string }).registeredAt;
+  const kronosPlans = volTrialPlans().filter(plan => plan.family === 'vol-kronos');
+  assert.equal(kronosPlans.length, 2);
+  assert.equal(kronosPlans.every(plan => registered(plan) === KRONOS_VOL_PROTOCOL.registeredAt), true);
+  assert.equal(volTrialPlans().filter(plan => plan.family !== 'vol-kronos').every(plan => registered(plan) === VOL_PROTOCOL.registeredAt), true);
+  // v2 changes only the comparison: the model call stays the same, so cached forecasts stay valid.
+  assert.equal(KRONOS_VOL_PROTOCOL.horizonBars, VOL_PROTOCOL.kronosHorizonBars);
+  assert.equal(KRONOS_VOL_PROTOCOL.context, VOL_PROTOCOL.kronosContext);
+  assert.equal(KRONOS_VOL_PROTOCOL.stride, VOL_PROTOCOL.kronosStride);
+  assert.equal(KRONOS_VOL_PROTOCOL.sampleCount, VOL_PROTOCOL.kronosSampleCount);
+});
+
+function kronosFixture(closes: readonly number[]) {
+  const klines = klinesFrom(closes);
+  const indexes: number[] = [];
+  for (let index = KRONOS_VOL_PROTOCOL.context - 1; index + KRONOS_VOL_PROTOCOL.horizonBars < klines.length; index += KRONOS_VOL_PROTOCOL.stride) {
+    indexes.push(index);
+  }
+  return { klines, indexes };
+}
+
+test('a flat block cannot blow up the Kronos baselines (v1 regression)', () => {
+  const closes = randomWalk(1400, 5);
+  const { klines, indexes } = kronosFixture(closes);
+  // Freeze the price for the 6 hours before every decision: v1 forecast ~1e-12 there.
+  for (const index of indexes) {
+    for (let back = 0; back <= KRONOS_VOL_PROTOCOL.horizonBars; back++) klines[index - back].close = klines[index - KRONOS_VOL_PROTOCOL.horizonBars].close;
+  }
+  const cache = new Map(indexes.map(index => [klines[index].openTime, { sampleEnds: [klines[index].close * 1.01, klines[index].close * 0.99, klines[index].close * 1.005, klines[index].close * 0.995] }]));
+  const rows = buildKronosObservations(klines, indexes, cache, []);
+  assert.ok(rows.length > 40);
+  for (const row of rows) {
+    assert.ok(row.naive >= kronosVolFloor());
+    assert.ok(row.forecast >= kronosVolFloor());
+    if (row.har !== null) assert.ok(row.har >= kronosVolFloor());
+    const loss = qlike(row.naive, row.realized) as number;
+    // With a floor of 1e-8 per hour the worst term stays bounded; v1 reached 1e8.
+    assert.ok(loss < 1e4, `QLIKE ${loss} explodiu`);
+  }
+});
+
+test('the Kronos HAR only uses decisions whose label had already closed', () => {
+  const { klines, indexes } = kronosFixture(randomWalk(1600, 9));
+  const cache = new Map(indexes.map(index => [klines[index].openTime, { sampleEnds: [klines[index].close * 1.01, klines[index].close * 0.99, klines[index].close] }]));
+  const before = buildKronosObservations(klines, indexes, cache, []);
+  const cut = before.length - 10;
+  const shocked = klines.map(bar => ({ ...bar }));
+  for (let index = indexes[cut] + 1; index < shocked.length; index++) shocked[index].close *= index % 2 === 0 ? 1.05 : 0.95;
+  const after = buildKronosObservations(shocked, indexes, cache, []);
+  for (let index = 0; index <= cut; index++) {
+    assert.equal(after[index].har, before[index].har, `HAR da linha ${index} viu o futuro`);
+    assert.equal(after[index].naive, before[index].naive);
+  }
+});
+
+function syntheticRows(count: number, seed: number, forecastOf: (truth: number, random: () => number) => number): KronosObservation[] {
+  const random = mulberry32(seed);
+  const rows: KronosObservation[] = [];
+  for (let index = 0; index < count; index++) {
+    const truth = 1e-4 * Math.exp(2 * (random() - 0.5));
+    const realized = truth * -Math.log(Math.max(1e-9, random()));
+    rows.push({
+      openTime: index,
+      priceReturn: 0,
+      fundingPaidByLong: 0,
+      forecast: forecastOf(truth, random),
+      naive: 1e-4,
+      har: 1e-4 * Math.exp(0.5 * (random() - 0.5)),
+      realized,
+      squaredReturn: realized,
+      absolute: Math.sqrt(realized),
+      harDay: 0,
+      harWeek: 0,
+      harMonth: 0
+    });
+  }
+  return rows;
+}
+
+test('the v2 Kronos gate needs both baselines beaten on the same points', () => {
+  const informed = judgeKronosVol(syntheticRows(400, 3, truth => truth));
+  assert.equal(informed.verdict, 'aprovada');
+  assert.ok(informed.versusRecent.beats && informed.versusHar.beats);
+  const blind = judgeKronosVol(syntheticRows(400, 3, () => 1e-4));
+  assert.equal(blind.verdict, 'reprovada');
+  const short = judgeKronosVol(syntheticRows(20, 3, truth => truth));
+  assert.equal(short.verdict, 'inconclusiva');
+  const noHar = judgeKronosVol(syntheticRows(400, 3, truth => truth).map(row => ({ ...row, har: null })));
+  assert.equal(noHar.verdict, 'inconclusiva');
 });
 
 test('QLIKE, Diebold-Mariano and coverage match their definitions', () => {

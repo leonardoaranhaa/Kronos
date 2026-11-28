@@ -59,6 +59,48 @@ export const VOL_PROTOCOL = Object.freeze({
   kronosSampleCount: 4
 });
 
+/**
+ * Kronos-small dispersion cell, second version. Frozen on 2026-11-28 before it was scored.
+ *
+ * Why a v2: in v1 the "vol recente" baseline was the square of ONE 6-hour log return,
+ * floored at 1e-12. A flat block made that forecast ~1e-12 and the QLIKE term
+ * realized/forecast ~1e8, so the mean loss of the baseline was 1194.8 and the
+ * Kronos "aprovada" was a comparison against a broken forecast, not skill.
+ * The v1 trials stay in the log and keep counting.
+ *
+ * v2 changes only the comparison, not the model call (same context, horizon, stride and
+ * sample count, so the forecast cache stays valid):
+ * - target: realized variance of the next 6 hours (sum of 6 squared hourly log returns),
+ *   the same kind of target the six HAR-RV cells use;
+ * - baseline 1: realized variance of the last 24 hours, scaled to 6 hours;
+ * - baseline 2: HAR-RV on 6-hour blocks, refit on every earlier decision whose label was already closed;
+ * - a variance floor of 1e-8 per hour, applied to every forecast alike.
+ * Kronos passes only when it beats BOTH baselines, QLIKE lower and one-sided DM p < 0.05,
+ * on the same points, with at least 30 of them.
+ */
+export const KRONOS_VOL_PROTOCOL = Object.freeze({
+  registeredAt: '2026-11-28T12:00:00.000Z',
+  id: 'kronos-vol-v2',
+  horizonBars: VOL_PROTOCOL.kronosHorizonBars,
+  context: VOL_PROTOCOL.kronosContext,
+  stride: VOL_PROTOCOL.kronosStride,
+  sampleCount: VOL_PROTOCOL.kronosSampleCount,
+  recentHours: 24,
+  harWeekBlocks: VOL_PROTOCOL.weekSpan,
+  harMonthBlocks: VOL_PROTOCOL.monthSpan,
+  varianceFloorPerHour: 1e-8,
+  minTrainForecasts: VOL_PROTOCOL.minTrainForecasts,
+  minTestObservations: VOL_PROTOCOL.minTestObservations,
+  dmLag: 0,
+  dmHorizon: 1,
+  dmAlpha: VOL_PROTOCOL.dmAlpha,
+  filterQuantile: VOL_PROTOCOL.filterQuantile
+});
+
+export function kronosVolFloor(): number {
+  return KRONOS_VOL_PROTOCOL.varianceFloorPerHour * KRONOS_VOL_PROTOCOL.horizonBars;
+}
+
 export type VolSymbol = (typeof VOL_PROTOCOL.symbols)[number];
 export type VolHorizon = (typeof VOL_PROTOCOL.horizons)[number];
 export type VolModelId = (typeof VOL_PROTOCOL.models)[number];
@@ -85,8 +127,9 @@ export const VOL_FILTER_RULES: readonly string[] = [
 ];
 
 export const VOL_KRONOS_RULES: readonly string[] = [
-  'O Kronos-small não entra nas seis células. A previsão dele é a variância das amostras do caminho de 6 horas já congelado no protocolo de pesquisa, comparada com o quadrado do log-retorno nessas 6 horas.',
-  '**Aprovada** nessa célula só com QLIKE melhor que a vol recente e p-valor de Diebold-Mariano abaixo de 0,05, em pelo menos 30 pontos. Sem o worker e sem os pesos o veredito fica inconclusivo. O comando é `npm run validate -- --strategy kronos-vol`.'
+  'O Kronos-small não entra nas seis células. A previsão dele é a variância das amostras do caminho de 6 horas já congelado no protocolo de pesquisa. Na versão 2 (`kronos-vol-v2`, registrada em 28/11/2026, antes da conta) o alvo é a variância realizada das 6 horas seguintes, a soma dos quadrados dos retornos de 1 hora.',
+  'A versão 1 comparava o Kronos com o quadrado de um único retorno de 6 horas, com piso de 1e-12. Um bloco parado levava essa previsão a quase zero e o QLIKE dela a 1e8. O "aprovado" da versão 1 era um defeito da comparação, não habilidade. As tentativas da versão 1 continuam no registro e continuam contando.',
+  '**Aprovada** nessa célula só quando o Kronos vence as duas referências nos mesmos pontos: a vol realizada das últimas 24 horas, escalada para 6, e um HAR-RV de blocos de 6 horas ajustado só com decisões anteriores. QLIKE menor e p-valor unilateral de Diebold-Mariano abaixo de 0,05 contra cada uma, em pelo menos 30 pontos. Todas as previsões têm o mesmo piso, 1e-8 por hora. Sem o worker e sem os pesos o veredito fica inconclusivo. O comando é `npm run validate -- --strategy kronos-vol`.'
 ];
 
 export function volFamily(symbol: string, horizonHours: number, book: 'segurar' | 'regras' = 'segurar'): string {
@@ -167,31 +210,36 @@ export function volTrialPlans(): {
       }
     }
   }
-  plans.push({
-    family: volKronosFamily(),
-    strategy: 'kronos-vol',
-    params: {
-      ...base,
-      kind: 'kronos-dispersao',
-      symbol: 'BTCUSDT',
-      horizon: VOL_PROTOCOL.kronosHorizonBars,
-      model: 'kronos-small',
-      book: 'filtro'
-    }
-  });
-  plans.push({
-    family: volKronosFamily(),
-    strategy: 'kronos-vol-naive',
-    params: {
-      ...base,
-      kind: 'kronos-dispersao',
-      symbol: 'BTCUSDT',
-      horizon: VOL_PROTOCOL.kronosHorizonBars,
-      model: 'naive',
-      book: 'filtro'
-    }
-  });
+  plans.push(...kronosVolTrialPlans());
   return plans;
+}
+
+/** The Kronos cell under its own v2 registration. v1 rows already in the log keep their ids. */
+export function kronosVolTrialPlans(): {
+  family: string;
+  strategy: string;
+  params: Record<string, unknown>;
+}[] {
+  const base = {
+    protocol: KRONOS_VOL_PROTOCOL.id,
+    registeredAt: KRONOS_VOL_PROTOCOL.registeredAt,
+    windowStart: VOL_PROTOCOL.windowStart,
+    windowEnd: VOL_PROTOCOL.windowEnd,
+    filterQuantile: KRONOS_VOL_PROTOCOL.filterQuantile,
+    recentHours: KRONOS_VOL_PROTOCOL.recentHours,
+    varianceFloorPerHour: KRONOS_VOL_PROTOCOL.varianceFloorPerHour,
+    target: 'variancia-realizada-6h',
+    feeRate: VOL_PROTOCOL.feeRate,
+    slippageRate: VOL_PROTOCOL.slippageRate,
+    kind: 'kronos-dispersao',
+    symbol: 'BTCUSDT',
+    horizon: KRONOS_VOL_PROTOCOL.horizonBars,
+    book: 'filtro'
+  };
+  return [
+    { family: volKronosFamily(), strategy: 'kronos-vol', params: { ...base, model: 'kronos-small' } },
+    { family: volKronosFamily(), strategy: 'kronos-vol-naive', params: { ...base, model: 'vol-realizada-24h' } }
+  ];
 }
 
 export function roundTripCost(): number {
